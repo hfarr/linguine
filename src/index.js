@@ -218,11 +218,17 @@ function add_points(guild_id, user_id, points) { // todo should check points > 0
     let new_points = get_points(guild_info, user_id) + points
 
     // TODO un-hardcode 100, parameterize in guild_info
-    if (new_points >= 100) {
+    let linguines_to_add = 0
+    while (new_points >= 100) {
+        new_points -= 100
+        linguines_to_add += 1
+    }
+
+    if (linguines_to_add > 0) {
+
         get_user(guild_id, user_id)
-            .then((usr) => { send_message(guild_id, `${usr.toString()} has earned a Linguine.`)})
-        add_linguine(guild_id, user_id)
-        new_points = 0
+            .then((usr) => { send_message(guild_id, `${usr.toString()} has earned ${linguines_to_add === 1 ? `a Linguine.` : `${linguines_to_add} Linguines.`}`)})
+        add_linguine(guild_id, user_id, linguines_to_add)
     }
 
     if (guild_info['user_data'][user_id] === undefined ) { // we weren't tracking them before
