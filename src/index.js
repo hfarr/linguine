@@ -181,6 +181,12 @@ function send_message(guild_id, message) {
         .catch(console.error)
 }
 
+function parse_user_mention(mention_string) {
+    const user_match = /\D*(?<id>\d+).*/
+    let { groups: { id: result = null } = {} } = user_match.exec(mention_string) ?? {}
+    return result
+}
+
 function get_user(guild_id, user_id) {
     return new Promise((resolve, reject) => {
         client.guilds.fetch(guild_id)
@@ -243,7 +249,7 @@ function points_command(msg, [user, points_str]) {
         // code unit errors (I think, at least. Need to experiment and read more of Horstmann)
         // UPDATE: okay lol so big CAUTION text on page 117. If the second arg to substring is bigger, the ARGUMENTS GET SWITCHED (why!)
         //      horstmann prefers slice, and I think I do too. Read the text for his reasoning
-        let points_recipient_id = user.slice(2, -1) // Retrieve snowflake of mentioned user
+        let points_recipient_id = parse_user_mention(user) // Retrieve snowflake of mentioned user
         let points_recipient = msg.guild.member(points_recipient_id)
 
         if (points_recipient !== null) {    // Successfully parsed a user on this guild
@@ -263,10 +269,10 @@ function points_command(msg, [user, points_str]) {
 
 function linguines_command(msg, [user]) {
     let guild_id = msg.guild.id
-    let guild_info = guilds[guild_info]
+    let guild_info = guilds[guild_id]
 
     if (user !== undefined) {
-        let user_id = user.slice(2, -1) // discord snowflake (not perfect - I need to do some regex :S)
+        let user_id = parse_user_mention(user) // discord snowflake (not perfect - I need to do some regex :S)
         let member = msg.guild.member(user_id)
 
         if (member !== null) {
