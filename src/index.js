@@ -266,7 +266,7 @@ function points_command(msg, [user, points_str]) {
             if (points > 0) {
                 add_points(guild_id, points_recipient_id, points)
                 let new_total = guild_info['user_data'][points_recipient_id]['points']
-                msg.channel.send(`${msg.user.toString()} gave ${points_recipient.toString()} ${points} points! New total: ${new_total}`)
+                msg.channel.send(`${msg.author.toString()} gave ${points_recipient.toString()} ${points} points! New total: ${new_total}`)
             } else {
                 msg.channel.send(`${points_recipient.toString()} has ${current_points} points.`)
             }
