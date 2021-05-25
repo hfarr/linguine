@@ -225,6 +225,10 @@ function add_points(guild_id, user_id, points) { // todo should check points > 0
         new_points = 0
     }
 
+    if (guild_info['user_data'][user_id] === undefined ) { // we weren't tracking them before
+        guild_info['user_data'][user_id] = {}
+    }
+
     // TODO db op! golly gee whillickers!
     guild_info['user_data'][user_id]['points'] = new_points
 }
@@ -233,7 +237,10 @@ function add_linguine(guild_id, user_id, linguines = 1) { // todo should check l
     let guild_info = guilds[guild_id] // assuming this is undefined, returns valid 'guild_info' object
     let new_linguines = get_linguines(guild_info, user_id) + linguines
 
-    guild_info['user_data'][user_id]['points'] = new_linguines
+    if (guild_info['user_data'][user_id] === undefined ) { // we weren't tracking them before
+        guild_info['user_data'][user_id] = {}
+    }
+    guild_info['user_data'][user_id]['linguines'] = new_linguines
 }
 
 function points_command(msg, [user, points_str]) {
