@@ -221,7 +221,7 @@ function add_points(guild_id, user_id, points) { // todo should check points > 0
     if (new_points >= 100) {
         get_user(guild_id, user_id)
             .then((usr) => { send_message(guild_id, `${usr.toString()} has earned a Linguine.`)})
-        add_linguine(guild_info, user_id)
+        add_linguine(guild_id, user_id)
         new_points = 0
     }
 
