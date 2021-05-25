@@ -176,7 +176,7 @@ function send_message(guild_id, message) {
 
     // let { id, token, channel_id }= webhooks[guild_id]
     // let webhook = discord.WebhookClient(...webhooks[guild_id])
-    client.fetchWebhook(webhooks[guild_id])
+    client.fetchWebhook(webhooks[guild_id].id)
         .then(webhook => webhook.send(message))
         .catch(console.error)
 }
@@ -317,7 +317,6 @@ client.on('message', msg => {
     if (msg.content.startsWith(CMD_PREFIX)) {
         console.log(`${msg.author.tag} in #${msg.channel.name} sent: ${msg.content}`)
         handle_cmd(msg)
-        msg.reply(`You sent command \`${msg.content.slice(1)}\``)
     }
 });
 
