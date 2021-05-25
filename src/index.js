@@ -288,7 +288,7 @@ const COMMANDS = {
 function handle_cmd(msg) {
     let [command, ...args] = msg.content.split(" ")
 
-    let func = COMMANDS[command]
+    let func = COMMANDS[command.toLocaleLowerCase()]
     if (func !== undefined) {
         func(msg, args)
     }
@@ -300,7 +300,7 @@ client.on('ready', () => {
 });
 client.on('message', msg => {
     if (msg.content.startsWith(CMD_PREFIX)) {
-        console.log(`${msg.author.tag} in #${msg.channel.name} sent: ${message.content}`)
+        console.log(`${msg.author.tag} in #${msg.channel.name} sent: ${msg.content}`)
         handle_cmd(msg)
         msg.reply(`You sent command \`${msg.content.slice(1)}\``)
     }
