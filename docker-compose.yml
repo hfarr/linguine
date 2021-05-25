@@ -1,0 +1,24 @@
+version: "3.9"
+
+services: 
+
+  # db:
+    # image: "TBD"
+
+  server:
+    image: "linguine:latest"
+    build:
+      # default target
+      context: .
+    command: 
+      - "node"
+      - "src/index.js"
+    ports:
+      - "8080:8080"
+    working_dir: "/app"
+    environment: 
+      - "NODE_ENV=development"
+      - "DISCORD_TOKEN=${DISCORD_TOKEN}"
+    volumes:
+      - "./src:/app/src"
+      - "/tmp/apps:/tmp/apps"

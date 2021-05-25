@@ -1,0 +1,21 @@
+{
+  "name": "linguine",
+  "version": "1.0.0",
+  "description": "Linguine tracker for OQFC",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "webapp",
+    "bot"
+  ],
+  "author": "Henry Farr",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "discord.js": "^12.5.3",
+    "express": "^4.17.1"
+  }
+}
