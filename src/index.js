@@ -266,7 +266,7 @@ function linguines_command(msg, [user]) {
     let guild_info = guilds[guild_info]
 
     if (user !== undefined) {
-        let user_id = user.slice(2, -1) // discord snowflake
+        let user_id = user.slice(2, -1) // discord snowflake (not perfect - I need to do some regex :S)
         let member = msg.guild.member(user_id)
 
         if (member !== null) {
@@ -288,9 +288,11 @@ const COMMANDS = {
 function handle_cmd(msg) {
     let [command, ...args] = msg.content.split(" ")
 
-    let func = COMMANDS[command.toLocaleLowerCase()]
+    let func = COMMANDS[command.toLocaleLowerCase().slice(CMD_PREFIX.length)]
     if (func !== undefined) {
         func(msg, args)
+    } else {
+        console.log("Not a command")
     }
 }
 
