@@ -6,41 +6,25 @@ const querystring = require('querystring')
 // import * as fs from 'fs/promises';   // using promise api over sync api (which is just 'fs')
 const fs = require('fs/promises');   // using promise api over sync api (which is just 'fs')
 
-const express = require('express')
-const discord = require('discord.js')
+const express = require('express');
+const discord = require('discord.js');
 const axios = require('axios');
-const { url } = require('inspector');
+const Redis = require('ioredis'); // https://github.com/luin/ioredis
 
 const app = express()
 
-// const client = new discord.Client()
-
-/* I had a small misunderstanding - 
-    OAUTH2 grants are for acting on behalf of users. Not necessarily bots-
-    so it's for e.g taking actions on their behalf, such as 
-        * registering a webhook
-        * reading their messages
-        * updating their "now playing" list
-        * doing other stuff
-    and for linguine, we want a bot. bot I am going to play around with this side of the coin,
-    out of interest. May come in handy for other purposes later.
- */
-// const client = new discord.ClientUser()
 const client = new discord.Client()
-
-const hostname = `${process.env.BIND_IP ?? '0.0.0.0'}`
-const port = `${process.env.BIND_PORT ?? 8080}`
 const token = `${process.env.DISCORD_TOKEN}`
 
-console.log({ hostname, port })
+const DB_HOST="redis" // docker bind
+const redis = new Redis(DB_HOST);
+
 
 // One thing we can use oauth for is verification - logging into the web panel with a valid OAUTH token
 // then only people with the correct permission can login.
 
 const joined_guilds = []
-
 const guilds = {}
-
 const webhooks = {}
 
 const CURRENT_LINK = "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=536939520&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&response_type=code&scope=bot%20webhook.incoming"
@@ -66,9 +50,8 @@ const CLIENT_ID = `${process.env.CLIENT_ID}`
 const CLIENT_SECRET = `${process.env.CLIENT_SECRET}`
 // might have to use 
 const REDIRECT_URI = 'https://linguine.hfarr.net/api/token'
-// const REDIRECT_URI = 'https://linguine.hfarr.net/success'
 
-// this should be a promise
+// returns a promise, yay async
 function exchange_code(code) {
 
     const data = {
@@ -89,20 +72,7 @@ function exchange_code(code) {
         url: API_ENDPOINT,
     }
 
-    // let response
-
-    // axios.post(API_ENDPOINT, data)
     return axios(options)
-    // .then(res=>{
-    //     console.log(`Status: ${res.status}`)
-    //     console.log(res.data)
-    //     response = res
-    // })
-    // .catch(error=> {
-    //     console.error("Error :(")
-    //     // console.error(error.message)
-    //     console.error(error)
-    // })
 }
 
 // Discord OAUTH2 token, queried with handoff token
@@ -129,7 +99,6 @@ app.get('/api/token', (req, res) => {
 
             res.send("Bot registered succesfully") // redirect?
         })
-        // .then(tokdata => { res.send(`Token received? ${tokdata === undefined ? 'No :(' : `yes!\n${JSON.stringify(tokdata.data)}`}`) })
         .catch(error => {
             console.error("Error :(")
             console.error(error)
@@ -158,9 +127,18 @@ function new_registration(info) {
 
     // only saving one webhook to a guild for this bot, so we won't make it a list
     let { id, token, channel_id } = webhook
-    webhooks[guild_id] = { id, token, channel_id }
+    let hook = { id, token, channel_id }
+    webhooks[guild_id] = hook
+
+    // save in db
+    redis.pipeline()
+        .rpush('joined_guilds', guild_id)
+        .set(`guilds:${guild_id}`, JSON.stringify(guild_info))  // TODO use a redis hash, or zmap or whatever
+        .set(`webhooks:${guild_id}`, JSON.stringify(hook))      // yeah. storing JSON strings... not the best?
+        .exec((err, results) => {})                             // todo error handling. lots of work pushed off today..
 
 }
+
 
 function send_message(guild_id, message) {
 
@@ -326,7 +304,10 @@ client.on('message', msg => {
     try {
         await fs.mkdir('/tmp/apps', { recursive: true })
         try {
-            await fs.rm('/tmp/apps/linguine.socket', { force: true, }) // since we're the maintainers of this file, it should be okay, but overall not too great?
+            // TODO use 'unlink' instead?
+            // Okay so according to https://nodejs.org/api/net.html#net_server_listen all sockets are set to SO_REUSEADDR- which means you can
+            //      listen on the same socket again, *provided you close the server*. which we, notoriously, do not do.
+            await fs.unlink('/tmp/apps/linguine.socket') // since we're the maintainers of this file, it should be okay, but overall not too great?
         } catch (err) {
             console.log(err.message);
             console.log("Proceeding")
@@ -334,7 +315,15 @@ client.on('message', msg => {
         // like Ideally we are 'free'ing resources after the program exits. I almost want to write a wrapper process that manages these socket files
         // for a process, and when it terminates, delete any files it acquired. Becauase the socket sticks around on termination. And we can't guarantee
         // we're going to go through the signal handler!
-        app.listen('/tmp/apps/linguine.socket')
+        // TODO when volume is mounted we need to ensure it gets the correct ownership w/in the node container
+        let appServer = app.listen('/tmp/apps/linguine.socket') // unix sockets are slight cans of worms- from the directory I chose, to permissions. use /var/run?
+        appServer.on('close', (error) => {
+            console.log("Server SHOULD close")
+            if (error !== undefined) {
+                console.log(error)
+            }
+        })
+
         try {
             // need to do this otherwise the nginx user can't read
             // isolate the management of this file from the this code- really all we should know is that we're
@@ -352,15 +341,27 @@ client.on('message', msg => {
         console.log("Am I reached?")
 
         process.on('SIGTERM', () => {
-            server.close(() => {
-                console.log('Process terminated')
+
+            // Disconnect and delete client
+            client.destroy()
+
+            // Disconnect redis (using quit() over disconnect() is the graceful approach)
+            redis.quit(false)
+
+            // Close the server
+            appServer.close(() => { 
+                console.log("Process terminated") 
+                appServer.getConnections((err, count) => {
+                    if (err !== undefined) {
+                        console.error(err)
+                    }
+                    console.log(`Outstanding connections ${count}`)
+                })
             })
-            // hope that this line executes
-            // TODO - this needs to be in an async block, which this event handler is not apparently
-            // await fs.rmdir('/tmp/apps/linguine.socket', { force: true, }) // since we're the maintainers of this file, it should be okay, but overall not too great?
 
         });
     } catch (err) {
-        console.log(err)
+        console.error("Error running program:")
+        console.error(error)
     }
 })();
