@@ -2,8 +2,12 @@ version: "3.9"
 
 services: 
 
-  # db:
-    # image: "TBD"
+  redis:
+    image: "redis:latest"
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - "./redis/data:/data"
+      - "./redis/conf:/usr/local/etc/redis"
 
   server:
     image: "linguine:latest"
