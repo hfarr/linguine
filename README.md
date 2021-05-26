@@ -24,7 +24,7 @@ Linguines are tracked by two counters per individual.
     This counter resets daily at 4AM back to 0, and after
     reaching 100 (whichever comes first).
 
-- The "linguine" counter increments for an individual when the
+- The "linguines" counter increments for an individual when the
     first counters reaches or exceeds 100, indicating they've
     earned a linguine. This action also triggers an announcement
     in the `#linguine-tracker` channel.
@@ -32,6 +32,9 @@ Linguines are tracked by two counters per individual.
     Only designated OQFC members can remove linguines from this
     counter.
 
+Each individual's counter can be referenced in discord. Enter in
+`!points <person's @>` for their points, or `!linguines <person's @>`
+for their linguines.
 
 ## Ideas
 
@@ -44,6 +47,8 @@ Linguines are tracked by two counters per individual.
 - Web panel
     - Overview of linguine state
     - administrative actions
+
+- Authenticate discord user when viewing web panel to protect private information
 
 
 
