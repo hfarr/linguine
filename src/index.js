@@ -10,6 +10,8 @@ const express = require('express');
 const discord = require('discord.js');
 const axios = require('axios');
 const Redis = require('ioredis'); // https://github.com/luin/ioredis
+const date = require('date-and-time');
+const { json } = require('express');
 
 const app = express()
 
@@ -118,10 +120,10 @@ function new_registration(info) {
     joined_guilds.push(guild_id)
 
     let guild_info = {
-        tok: access_token,
-        refresh_tok: refresh_token,
+        guild_id: guild_id,
+        token: access_token,
+        refresh_token: refresh_token,
         token_type: token_type,
-        user_data: {},
     }
     guilds[guild_id] = guild_info   // TODO save to a db
 
@@ -133,18 +135,101 @@ function new_registration(info) {
     // save in db
     redis.pipeline()
         .rpush('joined_guilds', guild_id)
+        .set(`discordInfo:${JSON.stringify(info)}`)             // Original response from discord in case we need to recover state
         .set(`guilds:${guild_id}`, JSON.stringify(guild_info))  // TODO use a redis hash, or zmap or whatever
         .set(`webhooks:${guild_id}`, JSON.stringify(hook))      // yeah. storing JSON strings... not the best?
         .exec((err, results) => {})                             // todo error handling. lots of work pushed off today..
 
 }
 
+// This only applies to numbers, since the automatic default Im DECLARING to be 0.
+// This is a good case for generics. Other types might have default values, so if v and dv are 
+// constrained to the same type, then I can apply the default value of the type for dv if it 
+// goes unspecified. Moreover we can specify a "constraint" predicate rather than checking if v is not null, is not undefined
+// This function returns v unless it is null or undefined, then it returns a default value. Numerics only (for now)
+// could probably use Number.isNan, which would cover the null, undefined, and unparseable cases
+const valueOrDefault = (v, dv=0) => Number.isFinite(v) ? v : dv
+const compose = (f,g) => x => f(g(x))   // Im glad the notation is flexible lol, feels closer to haskell
 
+// Small utility function. 4am is when points expire. To implement this we use redis
+// key expiration. After the key expires, if we try to read it, we'll get a default
+// of 0 as we interpret no points stored as no points whatsoever.
+function secondsTill4am() {
+    // Lots of string manipulation to arrive at what we want, possible room for optimization.
+    const UTC_RESET_HOUR = 8
+    const now = new Date();
+    let [ymd, hour] = date.format(now, 'YYYY-MM-DD HH', true).split(' ')
+    let today = date.parse(ymd, 'YYYY-MM-DD', true)
+    hour = parseInt(hour)
+
+    let resetTime = date.addHours(today, UTC_RESET_HOUR)
+    if (hour > UTC_RESET_HOUR) {
+        resetTime = date.addDays(resetTime, 1)
+    }
+    // if, for some reason, we cross the 4AM threshold before finishing this function, then we don't want to
+    // replace 'now' with a newly constructed date, because that would but 'now' after 'resetTime'.
+    // Just poor luck for the sap that earned points.
+    return date.subtract(resetTime, now).toSeconds()
+}
+
+// TODO need to get a graps on Promise fundamentals, and how 'then', 'catch', etc. are implemented
+// Retrieves guild information from redis-
+//  note that I'm constructing basically a jank object. Really should use the class semantics.
+//  also note this returns a promise
+function getGuildInfo(guildID) {
+    const guildKey = `guilds:${guildID}`
+    const promise = redis.get(guildKey)
+
+    // Function that we'll use to modify returned value from points or linguines.
+    // This first converts values in Redis to a number, then enforces default if undefined/null/NaN
+    // I think we could accomplish something similar with Lua scripts, transform on certain key passes, but nah.
+    const transformValue = compose(valueOrDefault, parseInt)
+    return promise
+        .then(guildStr => {
+            let guildInfo = JSON.parse(guildStr)
+            guildInfo.getGuildMember = (userID) => get_user(guildID, userID)
+            guildInfo.sendMessage = (message) => send_message(guildID, message)
+
+            // TODO redis error handling. Also TODO this may not be the best way to use an async pattern.
+            // could use multiple redis connections and name space the keys... hmm
+            guildInfo.getPoints = (userID) => redis.get(`${guildID}:${userID}:points`).then(transformValue);
+                // .then((ps) => { let p = transformValue(ps); console.log(`Got points ${p}`); return p });
+            guildInfo.getLinguines = (userID) => redis.get(`${guildID}:${userID}:linguines`).then(transformValue);
+                // .then((ps) => { let p = transformValue(ps); console.log(`Got linguines ${p}`); return p });
+            // yes technically we don't need to set the experiation if the points exist already but that micro optimization is not worth the effort.
+            guildInfo.setPoints = (userID, points) => { redis.setex(`${guildID}:${userID}:points`, Math.trunc(secondsTill4am()), points) } 
+            guildInfo.setLinguines = (userID, linguines) => { redis.set(`${guildID}:${userID}:linguines`, linguines) }
+            
+            return guildInfo
+        })
+        .catch(error => { console.error("Error creating guild object") })    // I generally don't like returning null on failure. It would be better, probably, to make this a promise overall.
+        // this handler ONLY catches errors from the initial redis.get(guildKey), ~~the rest is the executor of another promise (ish)~~ or rather, just body decs.
+}
+
+/**
+ * Fetch the User within the guild, or null if such a user doesn't exist.
+ * @param {*} guild_id Snowflake of guild
+ * @param {*} user_id Snowflake of user
+ * @returns GuildMember object referring to user with id
+ */
+function get_user(guild_id, user_id) {
+    return new Promise((resolve, reject) => {
+        client.guilds.fetch(guild_id)
+            .then(guild => guild.member(user_id))
+            .then(resolve)  // this seems similar to calling .resolve(...) on the final promise
+            .catch(reject)
+    })
+}
+
+/**
+ * Sends a message to the webhook of a channel
+ * @param {*} guild_id Snowflake of the guild
+ * @param {*} message Message to send
+ */
 function send_message(guild_id, message) {
-
-    // let { id, token, channel_id }= webhooks[guild_id]
-    // let webhook = discord.WebhookClient(...webhooks[guild_id])
-    client.fetchWebhook(webhooks[guild_id].id)
+    redis.get(`webhooks:${guild_id}`)
+        .then(val => JSON.parse(val))
+        .then(({id}) => client.fetchWebhook(id))    // have id, calling another Promise
         .then(webhook => webhook.send(message))
         .catch(console.error)
 }
@@ -155,14 +240,6 @@ function parse_user_mention(mention_string) {
     return result
 }
 
-function get_user(guild_id, user_id) {
-    return new Promise((resolve, reject) => {
-        client.guilds.fetch(guild_id)
-            .then(guild => guild.member(user_id))
-            .then(resolve)
-            .catch(reject)
-    })
-}
 
 // TODO should register these functions into guild_info on start up, or when 
 // read from a database. In other words instantiate an object properly, why don't we... :S
@@ -182,84 +259,85 @@ function get_linguines(guild_info, user_id) {
 
 // TODO another function to make into a database op
 function add_points(guild_id, user_id, points) { // todo should check points > 0, or have that as a DB constraint or something.
-    let guild_info = guilds[guild_id] // assuming this is undefined, returns valid 'guild_info' object
-    let new_points = get_points(guild_info, user_id) + points
 
-    // TODO un-hardcode 100, parameterize in guild_info
-    let linguines_to_add = 0
-    while (new_points >= 100) {
-        new_points -= 100
-        linguines_to_add += 1
-    }
+    let guildInfo 
+    return getGuildInfo(guild_id)
+        .then(gi => { guildInfo = gi; return guildInfo.getPoints(user_id) })
+        .then(oldPoints => {
+            let newPoints = oldPoints + points
+            let [ pointsToSet, newLinguines ] = [ (newPoints % 100), Math.trunc(newPoints / 100) ]
+            guildInfo.setPoints(user_id, pointsToSet)
 
-    if (linguines_to_add > 0) {
-
-        get_user(guild_id, user_id)
-            .then((usr) => { send_message(guild_id, `${usr.toString()} has earned ${linguines_to_add === 1 ? `a Linguine.` : `${linguines_to_add} Linguines.`}`)})
-        add_linguine(guild_id, user_id, linguines_to_add)
-    }
-
-    if (guild_info['user_data'][user_id] === undefined ) { // we weren't tracking them before
-        guild_info['user_data'][user_id] = {}
-    }
-
-    // TODO db op! golly gee whillickers!
-    guild_info['user_data'][user_id]['points'] = new_points
+            if (newLinguines > 0) {
+                add_linguines(guild_id, user_id, newLinguines)
+                get_user(guild_id, user_id)
+                    .then(usr => guildInfo.sendMessage(`${usr.toString()} has earned ${newLinguines === 1 ? `a Linguine.` : `${newLinguines} Linguines.`}`))
+            }
+            return pointsToSet
+        })
 }
 
-function add_linguine(guild_id, user_id, linguines = 1) { // todo should check linguines > 0, or have it as a DB constraint. Golly.
-    let guild_info = guilds[guild_id] // assuming this is undefined, returns valid 'guild_info' object
-    let new_linguines = get_linguines(guild_info, user_id) + linguines
-
-    if (guild_info['user_data'][user_id] === undefined ) { // we weren't tracking them before
-        guild_info['user_data'][user_id] = {}
-    }
-    guild_info['user_data'][user_id]['linguines'] = new_linguines
+function add_linguines(guild_id, user_id, linguines = 1) { // todo should check linguines > 0, or have it as a DB constraint. Golly.
+    let guildInfo   // maybe create syntax for "with" scopes, so you can specify variables available in all promises, or bind results for every pipelined function?
+    return Promise.resolve()
+        .then(() => getGuildInfo(guild_id))
+        .then(gi => { guildInfo = gi; return guildInfo.getLinguines(user_id) })
+        .then(oldLinguines => oldLinguines + linguines)
+        .then(newLinguines => { guildInfo.setLinguines(user_id, newLinguines); return newLinguines })
 }
 
 function points_command(msg, [user, points_str]) {
 
     let guild_id = msg.guild.id
-    let guild_info = guilds[guild_id]   // TODO database op to retrieve! async
+    // let guild_info = guilds[guild_id]   // TODO database op to retrieve! async
 
     // arguments in the deconstruction are either strings or undefined, unless someone pulls a big prank. in a module it wouldnt be an issue :eye_roll: because this code would be hidden
-    if (user !== undefined) {
+    if (user === undefined) { // no second argument to !points, so get current usr points
+        user = msg.author.id    // should still get parsed
+    }
 
-        // Ive found that in substr using offset of 0 and 1 back from length yield the same string! seems inconsistent.
-        // Slice on hte other hand operates on arrays, and when a string becomes arrays it is given the code point treatment, so we don't have to worry about off by one 
-        // code unit errors (I think, at least. Need to experiment and read more of Horstmann)
-        // UPDATE: okay lol so big CAUTION text on page 117. If the second arg to substring is bigger, the ARGUMENTS GET SWITCHED (why!)
-        //      horstmann prefers slice, and I think I do too. Read the text for his reasoning
-        let points_recipient_id = parse_user_mention(user) // Retrieve snowflake of mentioned user
-        let points_recipient = msg.guild.member(points_recipient_id)
+    // Ive found that in substr using offset of 0 and 1 back from length yield the same string! seems inconsistent.
+    // Slice on hte other hand operates on arrays, and when a string becomes arrays it is given the code point treatment, so we don't have to worry about off by one 
+    // code unit errors (I think, at least. Need to experiment and read more of Horstmann)
+    // UPDATE: okay lol so big CAUTION text on page 117. If the second arg to substring is bigger, the ARGUMENTS GET SWITCHED (why!)
+    //      horstmann prefers slice, and I think I do too. Read the text for his reasoning
+    let points_recipient_id = parse_user_mention(user) // Retrieve snowflake of mentioned user
+    let points_recipient = msg.guild.member(points_recipient_id)
+    let authorAsGuildMember = msg.guild.member(msg.author)
 
-        if (points_recipient !== null) {    // Successfully parsed a user on this guild
-            let current_points = get_points(guild_info, points_recipient_id)
+    if (points_recipient !== null) {    // Successfully parsed a user on this guild
 
-            let points = parseInt(points_str)
-            if (points > 0) {
-                add_points(guild_id, points_recipient_id, points)
-                let new_total = guild_info['user_data'][points_recipient_id]['points']
-                msg.channel.send(`${msg.author.toString()} gave ${points_recipient.toString()} ${points} points! New total: ${new_total}`)
-            } else {
-                msg.channel.send(`${points_recipient.toString()} has ${current_points} points.`)
-            }
+        let points = parseInt(points_str)
+        if (points > 0) {
+            // let new_total = guild_info['user_data'][points_recipient_id]['points']
+            add_points(guild_id, points_recipient_id, points)
+                // .then(() => getGuildInfo(guild_id))
+                // .then(gi => gi.getPoints(points_recipient_id))
+                .then(new_total => msg.channel.send(`${authorAsGuildMember.displayName} gave ${points_recipient.displayName} ${points} points! New total: ${new_total}`))
+        } else {
+            getGuildInfo(guild_id)
+                .then(gi => gi.getPoints(points_recipient_id))
+                .then(current_points => msg.channel.send(`${points_recipient.displayName} has ${current_points} point${current_points === 1 ? '' : 's'}.`))
         }
     }
 }
 
 function linguines_command(msg, [user]) {
     let guild_id = msg.guild.id
-    let guild_info = guilds[guild_id]
+    // let guild_info = guilds[guild_id]
 
-    if (user !== undefined) {
-        let user_id = parse_user_mention(user) // discord snowflake (not perfect - I need to do some regex :S)
-        let member = msg.guild.member(user_id)
+    if (user === undefined) { // grab points of message sender if no arg supplied
+        user = msg.author.id
+    }
 
-        if (member !== null) {
-            let current_linguines = get_linguines(guild_info, user_id)
-            msg.channel.send(`${member.toString()} has ${current_linguines} linguines.`)
-        }
+    let user_id = parse_user_mention(user)
+    let member = msg.guild.member(user_id)
+
+    if (member !== null) {
+        getGuildInfo(guild_id)
+            .then(gi => gi.getLinguines(user_id))
+            .then(current_linguines => msg.channel.send(`${member.displayName} has ${current_linguines} linguines.`))
+        // msg.channel.send(`${member.toString()} has ${current_linguines} linguine${current_linguines === 1 ? '' : 's'}.`)
     }
 }
 
@@ -282,7 +360,6 @@ function handle_cmd(msg) {
         console.log("Not a command")
     }
 }
-
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`)
@@ -356,6 +433,9 @@ client.on('message', msg => {
                         console.error(err)
                     }
                     console.log(`Outstanding connections ${count}`)
+                    if (count > 0) {
+                        console.log(' ^^ Should probably close them!')
+                    }
                 })
             })
 
