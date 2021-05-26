@@ -23,6 +23,8 @@ services:
     environment: 
       - "NODE_ENV=development"
       - "DISCORD_TOKEN=${DISCORD_TOKEN}"
+      - "CLIENT_ID=${CLIENT_ID}"
+      - "CLIENT_SECRET=${CLIENT_SECRET}"
     volumes:
       - "./src:/app/src"
       - "/tmp/apps:/tmp/apps"
