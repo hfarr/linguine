@@ -39,21 +39,11 @@ console.log({ hostname, port })
 
 const joined_guilds = []
 
-const guilds = {
-}
+const guilds = {}
 
-const webhooks = {
+const webhooks = {}
 
-}
-
-const register_links = {
-    // registers a bot AND a webhook, separately
-    "oauth2_bot_webhook": "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=68608&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&response_type=code&scope=bot%20webhook.incoming",
-    // won't work because I do not request a code grant
-    "bot_only": "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=68608&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&scope=bot",
-}
-
-const CURRENT_LINK = register_links["oauth2_bot_webhook"]
+const CURRENT_LINK = "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=536939520&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&response_type=code&scope=bot%20webhook.incoming"
 
 app.get('/', (req, res) => {
     //     res.send(`<p>Register a webhook</p>
