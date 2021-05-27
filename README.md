@@ -95,9 +95,9 @@ which will act as a reverse-proxy and can forward IP connections to
 the unix socket that linguine binds to.
 
 To use, first stop linguine if it is running `docker-compose down`.
-Then rename `docker-compose.proxy.yml` to `docker-compose.override.yml`
+Then copy `docker-compose.proxy.yml` into `docker-compose.override.yml`.
 ```bash
-mv docker-compose.proxy.yml docker-compose.override.yml
+cp docker-compose.proxy.yml docker-compose.override.yml
 ```
 You do not need to change anything else. Compose will automatically combine
 these two files into one configuration (you can see the configuration it
@@ -110,7 +110,33 @@ docker-compose up -d
 
 Visit `localhost` in your browser.
 
+To revert, stop linguine then delete `docker-compose.override.yml`.
+```bash
+docker-compose down
+rm docker-compose.override.yml
+```
+
+**Note:**
+To use Ouath2 redirects with your local webserver you must
+* bind the server to an external interface (so that computers over the internet can connect)
+* forward port 443
+* point a domain you control to your computer
+* add a redirect URL on an associated discord app using the same domain
+* obtain a TLS certificate for your domain
+* update the proxy to validate the certificate and serve on 443
+
+**This is not necessary to obtain a token for your bot, or even to do code/token exchange.**
+
+Those steps are necessary to execute on the host machine that runs the app
+in production. For development it is not necessary, but it becomes difficult to
+test any oauth integration. My recommendation if you need an Oauth2 token is
+set up `https://example.com` as your redirect domain, then when you authorize
+on your app copy the 'code' value from the query string and perform a token
+exchange manually. (Disclaimer, I haven't tested this, but theoretically any https:// domain 
+should work but pick one you trust that doesn't already implement a discord bot.)
+
 <!-- hoping an empty # will create an h1 tag that github has styled to use a border lol -->
+<!-- looks like it does in VSCode preview at least -->
 #
 
 ## Ideas
@@ -129,6 +155,17 @@ Visit `localhost` in your browser.
     - Authenticate w/discord
     - administrative actions
     - linguine removal (designated members only)
+    - Potential actions, like cap maximum points someone can give...
+        - ... in a single command
+        - ... per day
+
+        as anyone can assign, e.g, 1000000000 points. Or get into an overflow state. Yeah. We don't check for that!
+        but I think `parseInt(...)` will fail in a way we are handling (NaN, infinite, or something) so it might 
+        not be an issue - but the abuse potential is.
+
+- Log all commands
+    - per guild, user
+    - Audit trail that admins can see on the web panel
 
 - Refactor
     - There is a lot (a **lot**) of room to reaaaallly make use of type script, modules, 
