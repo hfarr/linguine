@@ -29,8 +29,8 @@ const redis = new Redis(DB_HOST);
 const CURRENT_LINK = "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=536939520&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&response_type=code&scope=bot%20webhook.incoming"
 
 app.get('/', (req, res) => {
-    res.send(`<p>Register a bot</p>
-<a href=${CURRENT_LINK}>register webhook</a>`)
+    res.send(`<h1>Add linguine to your server</h1>
+<a href=${CURRENT_LINK}>Click here to complete the bot registration work flow.</a>`)
 
 })
 
