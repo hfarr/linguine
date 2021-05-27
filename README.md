@@ -1,4 +1,4 @@
-# Linguine! 
+# Linguine :spaghetti:
 
 ### They're good for you
 
@@ -95,6 +95,9 @@ TODO
 
 ## Ideas
 
+- **!important** refresh tokens regularly! like. schedule it! biweekly! or whenever the thingies expire!!
+    - or some setting for this
+
 - Track "unresolved" linguines separately"
     - Document their resolution (date, activity)
     - Weekly reminders for outstanding linguines
@@ -117,6 +120,25 @@ TODO
         - Discord server and client management
     
         should get their own directories/files under `src/` to separate concerns.
+
+- Track keys better
+    
+    basically, we need to use [sets](https://redis.io/commands#set) and store more data lol
+    - Reference recovery
+        - Right now, "user data" keys in redis that reference a users linguines or their points
+            are not tracked explicitly in the data base
+        - They are generated on demand
+        - "user points" keys expire and present less of a problem, but "user linguines" are permanent
+        - The only way to recover them is iterate over all keys in redis
+        - Should store a means to access keys, if you have a reference to the guild id.
+            This could be simple as `users:<guildId> = [<userId>, <userId>, <userId>, ... ]`, then can
+            rebuild the reference w/userId, or store the full key to all bits of data. Probably first
+            way is better. And probably as a nother set, not list.
+    - Sets not lists
+        - The guilds linguine is registered on is tracked in a redis list
+        - lists works for this use case as straight storage, but are inefficient for most of the ops we want
+            (e.g membership w/in the list, remove) - you can kinda use `LPOS`, `LRANGE` (over the
+            whole list), `LREM` (? maybe) but a set represents the data much better.
 
 - Decouple webserver binding
     - Parameterize bind options
