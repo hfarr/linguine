@@ -89,9 +89,29 @@ Executing `docker-compose up -d` (or without the detached flag `docker-compose u
 
 ### Setting up a webserver
 
-TODO
+An additional compose file (for use with docker compose) is included
+in this repository. It specifies another container, running `nginx`,
+which will act as a reverse-proxy and can forward IP connections to
+the unix socket that linguine binds to.
 
-<br>
+To use, first stop linguine if it is running `docker-compose down`.
+Then rename `docker-compose.proxy.yml` to `docker-compose.override.yml`
+```bash
+mv docker-compose.proxy.yml docker-compose.override.yml
+```
+You do not need to change anything else. Compose will automatically combine
+these two files into one configuration (you can see the configuration it
+will use by running `docker-compose config`).
+
+Bring linguine and the proxy up as you would bring linguine up without the proxy.
+```bash
+docker-compose up -d
+```
+
+Visit `localhost` in your browser.
+
+<!-- hoping an empty # will create an h1 tag that github has styled to use a border lol -->
+#
 
 ## Ideas
 

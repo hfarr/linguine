@@ -1,0 +1,23 @@
+# This file orchestrates an nginx reverse proxy to forward HTTP connections
+# to a unix socket. By default it only listens on the loop back interface
+# (i.e, only the host computer can connect) as it is intended for development
+# and testing locally.
+#
+# To Use:
+#   0. If linguine is running, stop it with `docker-compose down` (or `docker compose down`)
+#   1. Rename this file to 'docker-compose.override.yml'
+#   2. Execute `docker-compose up -d` (or `docker compose up -d`)
+#   3. In your browser enter "localhost" into the address bar
+
+version: "3.9"
+
+services:
+  proxy:
+    image: nginx:latest
+    ports:
+      # to listen on all interfaces, remove from the list item
+      #  127.0.0.1:
+      - "127.0.0.1:80:80"
+    volumes:
+      - "/tmp/apps/:/socks/apps/"
+      - "./nginx/:/etc/nginx/conf.d/"
