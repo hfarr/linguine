@@ -215,6 +215,9 @@ should work but pick one you trust that doesn't already implement a discord bot.
     
     I've been using a script to push updates and restart server but wowee that does not inspire confidence
 
+- Security
+    - Add state parameter to the oauth2 authorization workflow (need to do some learning for this)
+
 <br>
 
 ## Nitty Grittles
