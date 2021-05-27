@@ -387,8 +387,10 @@ client.on('message', msg => {
             process.exit(1)
         }
 
-        // discord client login
-        client.login(token)
+        // discord client login. App will run if this fails, so I can test locally without using my legit credentials.
+        // But other uses of client will also err - really this makes a case for modules! Its fine if we can't use the client, but 
+        // we should still see the web app!
+        client.login(token).catch((err) => { console.log(`Could not log in discord client: ${err.message}`) })
 
         // process.stdout.write("Ahh")
         console.log("Am I reached?")
