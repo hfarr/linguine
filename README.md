@@ -6,15 +6,17 @@
 
 This is a discord base linguine tracking system, custom built
 for the Official Qitta Fan Club (OQFC). More information on
-linguine's can be found on the shared google drive for members.
+linguines can be found on the shared google drive for members.
 
 Linguines are tracked by two counters per individual. 
 
-- The "points" counter ranges from 0 to 100. When the takes get
-    too spicy and/or disrespectful, and informal consensus of
-    OQFC members can assign an agreed upon number of points
-    (typically in increments of 5). These can be officially
-    counted on discord by typing
+- The "points" counter ranges from 0 to 100 (technically 99,
+    as values over 100 become linguines and reduce the counter
+    to below 100). 
+    When the takes get too spicy and/or disrespectful, an 
+    informal consensus of OQFC members can assign an agreed 
+    upon number of points (typically in increments of 5). 
+    These can be officially distributed on discord by typing
 
     ```
     !points <discord @ of person> <number of points>
@@ -24,17 +26,72 @@ Linguines are tracked by two counters per individual.
     This counter resets daily at 4AM back to 0, and after
     reaching 100 (whichever comes first).
 
-- The "linguines" counter increments for an individual when the
-    first counters reaches or exceeds 100, indicating they've
+- The "linguines" counter increments for an individual when their
+    points counters reaches or exceeds 100, indicating they've
     earned a linguine. This action also triggers an announcement
-    in the `#linguine-tracker` channel.
+    in the designated channel.
 
-    Only designated OQFC members can remove linguines from this
-    counter.
+    Only designated OQFC members can remove linguines. 
+    Although right now that must be done by manually editing the database.
 
 Each individual's counter can be referenced in discord. Enter in
 `!points <person's @>` for their points, or `!linguines <person's @>`
 for their linguines.
+
+## Development/Deployment
+
+Contact me if you would like help!
+
+### Requirements
+
+These you need on the host machine that will run linguine the (currently) intended way. Better deployment procedures are, presently, pleasant dreams we have for the future.
+- A unix-like system
+    - Linguine binds to unix sockets to serve its web content. Unfortunately this feature is hardcoded right now- but is ripe for change if you'd like to contribute a fix!
+    - To actually see the webpages you will need a front-facing webserver, AKA a [reverse proxy](https://en.wikipedia.org/wiki/Reverse_proxy). There are [additional instructions](#setting-up-a-webserver) to do this below.
+- [git](https://git-scm.com)
+- A [discord app](https://discord.com/developers/docs/intro) with a bot user.
+- A [Docker](https://www.docker.com/) installation
+- A [docker-compose](https://docs.docker.com/compose/install/) binary
+    - Certain versions of docker (the latest ones) have `Compose` built in. Check yours! The commands are all the same, but start with `docker compose` and not `docker-compose`.
+
+**Recommended**
+
+If you want to run code on your host, or just have access to a JS repl. Not strictly necessary. Really handy if you want to develop though.
+
+- [Node Version Manager](https://github.com/nvm-sh/nvm) (nvm)
+- An installation of [node](https://nodejs.org) (which you can get if you have [nvm](https://github.com/nvm-sh/nvm) by running `nvm install` within the root of your copy of this repository)
+- [npm](https://npmjs.com)
+
+### Instructions (mac/linux)
+
+Any commands to be run are assumed to be run in a compatible shell like bash. If you are on windows consider using [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install-win10). 
+A level of command line familiarity is assumed, at least until this procedure improves.
+
+1. Clone this repository with `git clone https://github.com/hfarr/linguine.git`. If you have an ssh key set up with github you can use `git@github.com:hfarr/linguine.git` instead. The remaining instructions take place within the directory. To get in run `cd linguine`.
+
+1. Create a file called `.env` in the root of your local copy of the repository, and populate it with the following contents:
+
+    ```bash
+    DISCORD_TOKEN=<discord bot token. KEEP THIS SECRET>
+    CLIENT_ID=<discord developer application oauth2 client id>
+    CLIENT_SECRET=<discord developer application oauth2 client secret>
+    ```
+
+    Replace the bracketed text on each line with corresponding values, as described. You can find this information on your [discord application](https://discord.com/developers/applications) page for this project.
+
+1. Build the linguine server image `docker-compose build` (or `docker compose build` if your docker installation includes compose).
+
+1. Pull the redis image `docker-compose pull redis`
+
+1. Start linguine `docker-compose up -d`
+
+Executing `docker-compose up -d` (or without the detached flag `docker-compose up`) will automatically build (if build context is specified) and pull (all other) images. This option is a convenience tool. For production images consider explicitly building, pulling, and even tagging images for each release. A project this small may not benefit from these extra steps. A larger project, or a thought-out ci/cd process, usually would.
+
+### Setting up a webserver
+
+TODO
+
+<br>
 
 ## Ideas
 
@@ -46,9 +103,59 @@ for their linguines.
 
 - Web panel
     - Overview of linguine state
+    - Authenticate w/discord
     - administrative actions
+    - linguine removal (designated members only)
 
-- Authenticate discord user when viewing web panel to protect private information
+- Refactor
+    - There is a lot (a **lot**) of room to reaaaallly make use of type script, modules, 
+        PROPER class semantics, all the nice ES6 features.
+    - An easy reach is separating concerns to different files, write now the entire app
+        runs in a monofile, but 
+        - Databse access
+        - Webserver resources
+        - Discord server and client management
+    
+        should get their own directories/files under `src/` to separate concerns.
 
+- Decouple webserver binding
+    - Parameterize bind options
+    - Remove FS management code specifically written for unix socket management
+
+    Linguine binds to a unix socket but this makes it far less portable.
+    I wanted to experiement with unix sockets as a solution to cross-container
+        IPC (without docker networks) but that does not need to be hard coded.
+
+- Test suite
+- Better production and dev deployment procedure
+    - Minimize those requirements dagnabbit
+- CI/CD
+    - Automated builds
+    - Automated testing
+    - Automated deploy
+    
+    I've been using a script to push updates and restart server but wowee that does not inspire confidence
+
+<br>
+
+## Nitty Grittles
+
+### How does it work?
+
+
+
+**FAQ**
+
+- Why [Node.js](https://nodejs.org)?
+
+    Henry is trying to learn javascript and has only really experienced backend work in Python, Ruby, and Java. 
+    One of my goals for the summer of 2021 before I start work is to finish off projects and this was a good chance to stretch out muscles I've never used before. 
+    I am also finding out that I quite like node for application level programming, over python/java/ruby (and, lets not kid ourselves, web app dev in ruby is more or less exclusively on the rails framework). 
+    Python I like for batch processes, number cronch, small programs, but there are a few pieces of it that are not as pleasant to use. 
+    Off the top of my head it's package management, import system, precarious conventions (e.g define `__str__` to make `str(...)` applicable to that object), and maybe a few other things have made for enough friction to stop me from trying to do larger-scoped projects with it. 
+    But I love using it to solve e.g coding challenges. 
+    I can make similar complaints about java, ruby but I should probably save that for a blog post haha.
+
+    Also I really like the async support and hyper active development! Javascript is, I think, picked on a lot by devs who primarily work in other languages (this was me). Cay S. Horstmann's _[Modern Javascript for the Impatient](https://horstmann.com/javascript-impatient/)_ has given me an appreciation for JS. That book was my primary resource aside from API references for each library.
 
 
