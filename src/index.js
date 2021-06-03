@@ -88,6 +88,7 @@ app.get('/api/token', (req, res) => {
   }
 
   console.log('Bot registration')
+  res.status(503).send("Registration temporarily unavailable")
   exchange_code(code)
     .then(discord_response => { // could call it success response
       console.log(`Status: ${discord_response.status}`)
@@ -106,7 +107,8 @@ app.get('/api/token', (req, res) => {
 
 
 function new_registration(info) {
-
+  console.error("Registrations temporarily closed");
+  return
   let { access_token, refresh_token, token_type, guild, webhook } = info
 
   // how we'll identify the bot
@@ -228,7 +230,7 @@ function get_user(guild_id, user_id) {
 function send_message(guild_id, message) {
   redis.get(`webhooks:${guild_id}`)
     .then(val => JSON.parse(val))
-    .then(({id}) => client.fetchWebhook(id))    // have id, calling another Promise
+    .then(({id, token}) => client.fetchWebhook(id, token))    // have id, calling another Promise. // HOTFIX required to pass token because the fetch will return a webhook without one if we don't
     .then(webhook => webhook.send(message))
     .catch(console.error)
 }
