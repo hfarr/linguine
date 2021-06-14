@@ -16,7 +16,7 @@ services:
       context: .
     command: 
       - "node"
-      - "src/index.js"
+      - "src/index.mjs"
     restart: always
     working_dir: "/app"
     environment: 
@@ -24,5 +24,3 @@ services:
       - "DISCORD_TOKEN=${DISCORD_TOKEN}"
       - "CLIENT_ID=${CLIENT_ID}"
       - "CLIENT_SECRET=${CLIENT_SECRET}"
-    volumes:
-      - "./src:/app/src"
