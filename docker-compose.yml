@@ -18,8 +18,6 @@ services:
       - "node"
       - "src/index.js"
     restart: always
-    ports:
-      - "8080:8080"
     working_dir: "/app"
     environment: 
       - "NODE_ENV=development"
@@ -28,4 +26,3 @@ services:
       - "CLIENT_SECRET=${CLIENT_SECRET}"
     volumes:
       - "./src:/app/src"
-      - "/tmp/apps:/tmp/apps"
