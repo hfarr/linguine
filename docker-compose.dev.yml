@@ -4,9 +4,4 @@ services:
   server:
     ports:
       - "127.0.0.1:8000:8000"
-    environment: 
-      DEV:
-    volumes:
-      - "./src:/app/src"
-      - "./node_modules:/app/node_modules"
     

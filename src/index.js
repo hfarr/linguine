@@ -108,7 +108,7 @@ app.get('/api/token', (req, res) => {
 
 })
 
-
+// TODO opposite of this for bot removed. This means cleaning out the DB.
 function new_registration(info) {
   console.error("Registrations temporarily closed");
   return
@@ -395,45 +395,27 @@ client.on('message', msg => {
   }
 });
 
-// I have no clue why - but even though "server" is not a name in the global scope (that I know of?)
-// if I assign it to the return from app.listen(...) it will not terminate the server. but if I do
-// by calling server.close(), it will. :/
-// const server = 
-// app.listen(port, hostname)
-(async function () {
+{ // Not necessary to block in the initialization but I desire restricted scope. Also at the moment no need for async/await here
   console.log("Begin")
+
+  let { BIND_IP='127.0.0.1', BIND_PORT=8000 } = process.env
+
+  let [ip, port] = [BIND_IP, parseInt(port)]
+  if (Number.isNaN(port)) {
+    console.error(`${port} is not a number`)
+    process.exit(1)
+  }
+
   try {
-    await fs.mkdir('/tmp/apps', { recursive: true })
-    try {
-      // TODO use 'unlink' instead?
-      // Okay so according to https://nodejs.org/api/net.html#net_server_listen all sockets are set to SO_REUSEADDR- which means you can
-      //      listen on the same socket again, *provided you close the server*. which we, notoriously, do not do.
-      await fs.unlink('/tmp/apps/linguine.socket') // since we're the maintainers of this file, it should be okay, but overall not too great?
-    } catch (err) {
-      console.log(err.message);
-      console.log("Proceeding")
-    }
-    // like Ideally we are 'free'ing resources after the program exits. I almost want to write a wrapper process that manages these socket files
-    // for a process, and when it terminates, delete any files it acquired. Becauase the socket sticks around on termination. And we can't guarantee
-    // we're going to go through the signal handler!
-    // TODO when volume is mounted we need to ensure it gets the correct ownership w/in the node container
-    let appServer = app.listen('/tmp/apps/linguine.socket') // unix sockets are slight cans of worms- from the directory I chose, to permissions. use /var/run?
+
+    let appServer = app.listen(port, ip)
+
     appServer.on('close', (error) => {
       console.log("Server SHOULD close")
       if (error !== undefined) {
         console.log(error)
       }
     })
-
-    try {
-      // need to do this otherwise the nginx user can't read
-      // isolate the management of this file from the this code- really all we should know is that we're
-      // binding to this socket. Management of it otherwise needs to happen somewhere else.
-      await fs.chmod('/tmp/apps/linguine.socket', 0o777)
-    } catch (err) {
-      console.error("Could not set permissions for unix socket")
-      process.exit(1)
-    }
 
     // discord client login. App will run if this fails, so I can test locally without using my legit credentials.
     // But other uses of client will also err - really this makes a case for modules! Its fine if we can't use the client, but 
@@ -470,4 +452,4 @@ client.on('message', msg => {
     console.error("Error running program:")
     console.error(error)
   }
-})();
+}
