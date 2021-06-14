@@ -82,14 +82,21 @@ function ComponentInteractionResponse() {
  */
 async function handle(interactionData) {
 
-  let { id } = interactionData
-  let interaction = getInteraction(id, interactionData)
-  
-  console.debug(interaction)
+  // console.debug is an alias to console.log
+  console.debug('Received interaction')
+  console.debug(interactionData)
+
+  let { id } = interactionData ?? {}
+  let interaction
+  if (id !== undefined) {
+    interaction = getInteraction(id, interactionData)
+  } else {
+    console.log('Invalid ID!')
+  }
 
   // prototype for linguine
 
-  let { type } = interaction
+  let { type } = (await interaction) ?? {}
   switch(type) {
     case InteractionTypes.ApplicationComment:
       return immediateResponse("I see you .. .")

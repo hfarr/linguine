@@ -33,7 +33,7 @@ app.all('/interaction', (req, res) => {
   let body = req.body
   let handlerResponse
   if (body !== undefined) {
-    handlerResponse = Interactor.handle()
+    handlerResponse = Interactor.handle(body)
   }
 
   if (handlerResponse !== undefined) {
