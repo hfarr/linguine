@@ -1,17 +1,13 @@
 'use strict';
-// const http = require('http')
-const querystring = require('querystring')
-// so, prank'd myself, but we're not in a module. We should be but we aren't. So gotta go with require syntax.
-// the node docs, as it turns out, defaults to showing you the ESM version
-// import * as fs from 'fs/promises';   // using promise api over sync api (which is just 'fs')
-const fs = require('fs/promises');   // using promise api over sync api (which is just 'fs')
+import querystring from 'querystring'
 
-const express = require('express');
-const discord = require('discord.js');
-const axios = require('axios');
-const Redis = require('ioredis'); // https://github.com/luin/ioredis
-const date = require('date-and-time');
-const { json } = require('express');
+import Interactor from './interaction.mjs'
+
+import express from 'express'
+import discord from 'discord.js'
+import axios from 'axios'
+import Redis from 'ioredis'; // https://github.com/luin/ioredi
+import date from 'date-and-time'
 
 const app = express()
 
@@ -30,6 +26,23 @@ const redis = new Redis(DB_HOST);
 // This link lets someone register their bot to a server, and set up a webhook. 
 // TODO gracefully handle cases where necessary permissions are not granted.
 const CURRENT_LINK = "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=536939520&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&response_type=code&scope=bot%20webhook.incoming"
+
+app.use('/interaction', express.json())
+app.all('/interaction', (req, res) => {
+
+  let body = req.body
+  let handlerResponse
+  if (body !== undefined) {
+    handlerResponse = Interactor.handle()
+  }
+
+  if (handlerResponse !== undefined) {
+    res.status(200).json(handlerResponse)
+  } else {
+    res.status(500)
+  }
+})
+
 
 app.get('/', (req, res) => {
   res.send(`<h1>Add linguine to your server</h1>
@@ -398,9 +411,9 @@ client.on('message', msg => {
 { // Not necessary to block in the initialization but I desire restricted scope. Also at the moment no need for async/await here
   console.log("Begin")
 
-  let { BIND_IP='127.0.0.1', BIND_PORT=8000 } = process.env
+  let { BIND_IP='0.0.0.0', BIND_PORT=8000 } = process.env
 
-  let [ip, port] = [BIND_IP, parseInt(port)]
+  let [ip, port] = [BIND_IP, parseInt(BIND_PORT)]
   if (Number.isNaN(port)) {
     console.error(`${port} is not a number`)
     process.exit(1)
@@ -409,10 +422,11 @@ client.on('message', msg => {
   try {
 
     let appServer = app.listen(port, ip)
+    console.log(`Server listening on ${ip}:${port}`)
 
     appServer.on('close', (error) => {
       console.log("Server SHOULD close")
-      if (error !== undefined) {
+      if (error !== undefined && error !== null) {
         console.log(error)
       }
     })

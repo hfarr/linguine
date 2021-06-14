@@ -78,7 +78,7 @@ function ComponentInteractionResponse() {
  * request is handled - either by returning data for an "immediate response" type 4 interaction,
  * or without data as an acknowledgement for other interactions, potentially making a callback.
  * 
- * @param interactionData Interaction object from discord 
+ * @param interactionData Interaction object from discord https://discord.com/developers/docs/interactions/slash-commands#interaction
  */
 async function handle(interactionData) {
 
@@ -96,9 +96,9 @@ async function handle(interactionData) {
     case InteractionTypes.MessageComponent:
       // let { data: { }}
       return immediateComponentResponse("Okay!")
+    default:
+      return immediateResponse(); // no data, no 'content', content is undefined so it shouldnt post a message
   }
-
-
 
 }
 
