@@ -15,6 +15,9 @@ const { json } = require('express');
 
 const app = express()
 
+const DEV = process.env.DEV === 'true'
+console.debug(`DEV ${DEV} has type ${typeof DEV}`)
+
 const client = new discord.Client()
 const token = `${process.env.DISCORD_TOKEN}`
 
@@ -231,13 +234,13 @@ function send_message(guild_id, message) {
   redis.get(`webhooks:${guild_id}`)
     .then(val => JSON.parse(val))
     .then(({id, token}) => client.fetchWebhook(id, token))    // have id, calling another Promise. // HOTFIX required to pass token because the fetch will return a webhook without one if we don't
-    .then(webhook => webhook.send(message))
+    .then(webhook => webhook.send(`${DEV === true ? '(debug) ' : ''}${message}`))
     .catch(console.error)
 }
 
 // Parse an ID from user mention in discord, which wraps it in angle brackets and varying 
 // other symbols (I've seen !, &, and plain- not sure exactly what they indicate)
-function parse_user_mention(mention_string) {
+function parseUserMention(mention_string) {
   const user_match = /\D*(?<id>\d+).*/
   let { groups: { id: result = null } = {} } = user_match.exec(mention_string) ?? {}
   return result
@@ -290,7 +293,7 @@ async function points_command(msg, [user, points_str]) {
   // code unit errors (I think, at least. Need to experiment and read more of Horstmann)
   // UPDATE: okay lol so big CAUTION text on page 117. If the second arg to substring is bigger, the ARGUMENTS GET SWITCHED (why!)
   //      horstmann prefers slice, and I think I do too. Read the text for his reasoning
-  let points_recipient_id = parse_user_mention(user) // Retrieve snowflake of mentioned user
+  let points_recipient_id = parseUserMention(user) // Retrieve snowflake of mentioned user
   let points_recipient = msg.guild.member(points_recipient_id)
   let authorAsGuildMember = msg.guild.member(msg.author)
 
@@ -306,7 +309,7 @@ async function points_command(msg, [user, points_str]) {
       let newTotal = await add_points(guild_id, points_recipient_id, points)
         // .then(() => getGuildInfo(guild_id))
         // .then(gi => gi.getPoints(points_recipient_id))
-      msg.channel.send(`${authorAsGuildMember.displayName} gave ${points_recipient.displayName} ${points} points! New total: ${newTotal}`)
+      msg.channel.send(`${DEV === true ? '(debug) ' : ''}${authorAsGuildMember.displayName} gave ${points_recipient.displayName} ${points} points! New total: ${newTotal}`)
         .catch((err) => {
           console.log(`Failed to send message: ${err.message}. Trying webhook.`)
           // tag them as notification
@@ -316,7 +319,7 @@ async function points_command(msg, [user, points_str]) {
       // getGuildInfo(guild_id)
       //     .then(gi => gi.getPoints(points_recipient_id))
       let curPoints = await guildInfo.getPoints(points_recipient_id)
-      msg.channel.send(`${points_recipient.displayName} has ${curPoints} point${curPoints === 1 ? '' : 's'}.`)
+      msg.channel.send(`${DEV === true ? '(debug) ' : ''}${points_recipient.displayName} has ${curPoints} point${curPoints === 1 ? '' : 's'}.`)
         .catch((err) => {
           console.log(`Failed to send message: ${err.message}. Trying webhook.`)
           // tag them as notification
@@ -339,18 +342,18 @@ async function linguines_command(msg, [user]) {
   }
 
   let authorAsGuildMember = msg.guild.member(msg.author)
-  let user_id = parse_user_mention(user)
+  let user_id = parseUserMention(user)
   let member = msg.guild.member(user_id)
 
   if (member !== null) {
     let guildInfo = await getGuildInfo(guild_id)
     let curLinguines = await guildInfo.getLinguines(user_id)
-    msg.channel.send(`${member.displayName} has ${curLinguines} linguines.`)
+    msg.channel.send(`${DEV === true ? '(debug) ' : ''}${member.displayName} has ${curLinguines} linguines.`)
       .catch((err) => {
         console.log(`Failed to send message: ${err.message}. Trying webhook.`)
         guildInfo.sendMessage(`${authorAsGuildMember.tag}, ${points_recipient.displayName} has ${curLinguines} point${curLinguines === 1 ? '' : 's'}.`)
       })
-    // msg.channel.send(`${member.toString()} has ${current_linguines} linguine${current_linguines === 1 ? '' : 's'}.`)
+    // msg.channel.send(`${DEV === true ? '(debug) ' : ''}${member.toString()} has ${current_linguines} linguine${current_linguines === 1 ? '' : 's'}.`)
   }
 }
 
@@ -363,9 +366,9 @@ const COMMANDS = {
 function cmdParse(text) {
   let argMatcher = /(?<arg>\S+)(?:\s*)/g
   let matches = text.matchAll(argMatcher)
-  let arguments = [...matches].map(m => m.groups.arg)
+  let cmdArgs = [...matches].map(m => m.groups.arg)
 
-  return arguments
+  return cmdArgs
 }
 
 // Everything after the !
