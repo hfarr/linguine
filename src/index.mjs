@@ -370,10 +370,72 @@ async function linguines_command(msg, [user]) {
   }
 }
 
+async function admin_command(msg, args) { // no arguments are used for now. Just brings up the admin panel
+  let guildID = msg.guild.id
+  // let authorAsGuildMember = msg.guild.member(msg.author)
+  let authorAsGuildMember = await msg.guild.members.fetch(msg.author)
+  let guildInfo = await getGuildInfo(guildID)
+
+  console.debug(`Message author: ${msg.author} from guild: ${msg.guild}`)
+  console.debug(`Admin command invoked by ${authorAsGuildMember.displayName}/${authorAsGuildMember.tag}`)
+
+  // do other tasks, e.g check authorization of calling member
+
+  // TODO message
+  msg.channel.send(`Hello ${authorAsGuildMember.tag}. Please visit ${guildInfo.webhook}.`)
+  // Attempting to send new fangled message components, since it SEEMS like the library supports them but I dont think the docs are updated.
+  //  may need to pull newer version.
+  // TODO temp going through webhook- discordjs has commits in master which include WebComponents but not in any release (that I can see)
+  //    so I may hotwire directly to the discord API. Or figure out how to update the package to point to master (which I think NPM supports)
+  // msg.channel.send()
+
+  let messageData = {
+    content: `Admin panel requested by ${authorAsGuildMember.tag}`,
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            custom_id: "LinguineAdmin",
+            type: 2,
+            label: "A label",
+            style: 1, // any style can work
+          },
+          {
+            custom_id: "LingoBingo", // maybe ID per user ? use label? need to establish a pattern for using buttons, there is only so much data we can transmit
+            type: 2,
+            label: "Another button",
+            style: 2,
+          },
+          {
+            custom_id: "Lastly", // maybe ID per user ? use label? need to establish a pattern for using buttons, there is only so much data we can transmit
+            type: 2,
+            label: "Ah ha! wait just a button",
+            style: 3,
+          }
+        ]
+      }
+    ]
+  }
+
+  guildInfo.sendMessage(messageData)
+  
+}
+
+// TODO better commands. Integrate w/Discord interactions (i.e make slash commands instead)
+// Command parsing should be a """framework""" which does a few things on each command -
+//  * fetching guild information (for response messages), 
+//  * fetching membership information
+//  * in effect, anything the DiscordJS would bundle with its created objects, because that strives for 1-1 correspondance and enabling each of these behaviours.
+//  and its okay if e.g the guild info goes unused, right? we accept these excesses whenever we abstract out to another level
+
+// Commands are called by passing the message object as the first argument, then additional tokens in a list as the second argument.
+//    ... could probably Spread them out into regular function arguments. TODO. perhaps
 const CMD_PREFIX = '!'
 const COMMANDS = {
   points: points_command,
   linguines: linguines_command,
+  admin: admin_command,
 }
 
 function cmdParse(text) {

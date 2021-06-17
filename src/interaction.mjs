@@ -18,6 +18,11 @@ const DISCORD_CALLBACK_BASE = "https://discord.com/api/v8"
  *      
  */
 
+// Class time. Of course, I have about as much class as july. but jokes on me, as I have taken classes in july. multiple times
+/*
+class 
+*/
+
 const InteractionTypes = {
   Ping: 1,
   ApplicationComment: 2,
