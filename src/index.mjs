@@ -6,7 +6,7 @@ import Interactor from './interaction.mjs'
 import express from 'express'
 import discord from 'discord.js'
 import axios from 'axios'
-import Redis from 'ioredis'; // https://github.com/luin/ioredi
+import Redis from 'ioredis'; // https://github.com/luin/ioredis
 import date from 'date-and-time'
 
 const app = express()
@@ -215,7 +215,50 @@ function getGuildInfo(guildID) {
       // yes technically we don't need to set the experiation if the points exist already but that micro optimization is not worth the effort.
       guildInfo.setPoints = (userID, points) => { redis.setex(`${guildID}:${userID}:points`, Math.trunc(secondsTill4am()), points) } 
       guildInfo.setLinguines = (userID, linguines) => { redis.set(`${guildID}:${userID}:linguines`, linguines) }
+
+      guildInfo.getAllLinguines = async () => {
+
+        // let fetcher = await client.guilds.fetch(guildID).then(g => id => g.members.fetch(id))
+        let guild = await client.guilds.fetch(guildID)
+        const fetcher = id => guild.members.fetch(id)
+        console.log('test', typeof await fetcher('846454323856408636'))
+
+        // let allLinguines = {}
+        const zip = (ks,vs) => {  // maybe this just makes a pair-wise list and not an object :I
+          // okay yeah. so when using 'e' as a key, it has to be something hashable. in this case... a string! so we are losing the data here!
+          // ks.forEach( (e,i) => allLinguines[e] = vs[i] )
+          // return allLinguines
+          return ks.map( (k,i) => [k, vs[i]])
+        }
+
+        let sliceParams = [`${guildID}:`.length, -':linguines'.length]
+        let usrIDS = await redis.keys(`${guildID}:*:linguines`).then(ks => ks.map(k=>k.slice(...sliceParams)))
+        console.debug(`(debug) got ids: \n`, usrIDS)
+
+        let usrKeys = await redis.keys(`${guildID}:*:linguines`)
+        console.debug(`(debug) got keys: \n`, usrKeys)
+
+        // wanted to use compose with redis.get and transform value :/ maybe a Promise compose. because then the work of transforming value to int doesnt have to
+        // happen in a loop pass at the end
+        // note: usrKeys.map(redis.get) did not work, i suspect passing the ioredis redis.get as a function vs using it 
+        //    explicitly in an arrow function makes a difference, because it supports different use cases. (promise api, 
+        //    which Im using, and a more traditional synchronous kind)
+        //    moreover: ioredis has a pipelining feature which would be better to use rather than initiating many separate calls out
+        // return Promise
+        //   .all(usrKeys.map(k => redis.get(k)))  
+        //   .then(linguineValues => zip(usrKeys, linguineValues.map(transformValue)))
+        return Promise
+          .all([
+            Promise.all(usrIDS.map(fetcher)), 
+            Promise.all(usrIDS.map(guildInfo.getLinguines))
+          ])    // yeah this is slightly a hackjob
+          .then(([userVals, linguineValues]) => {
+            // console.log(userVals, linguineValues)
+            return zip(userVals, linguineValues.map(transformValue))
+          })
+      }
       
+      // closure! capturing guildID
       return guildInfo
     })
     .catch(error => { console.error("Error creating guild object") })    // I generally don't like returning null on failure. It would be better, probably, to make this a promise overall.
@@ -311,8 +354,6 @@ async function points_command(msg, [user, points_str]) {
   let authorAsGuildMember = msg.guild.member(msg.author)
 
   let guildInfo = await getGuildInfo(guild_id)
-  // getGuildInfo(guild_id)
-  //     .then(gi => guildInfo = gi) // TODO error handle
 
   if (points_recipient !== null) {    // Successfully parsed a user on this guild
 
@@ -320,42 +361,74 @@ async function points_command(msg, [user, points_str]) {
     if (points > 0) {
       // let new_total = guild_info['user_data'][points_recipient_id]['points']
       let newTotal = await add_points(guild_id, points_recipient_id, points)
-        // .then(() => getGuildInfo(guild_id))
-        // .then(gi => gi.getPoints(points_recipient_id))
       msg.channel.send(`${DEV === true ? '(debug) ' : ''}${authorAsGuildMember.displayName} gave ${points_recipient.displayName} ${points} points! New total: ${newTotal}`)
         .catch((err) => {
           console.log(`Failed to send message: ${err.message}. Trying webhook.`)
           // tag them as notification
-          guildInfo.sendMessage(`${authorAsGuildMember.tag} gave ${points_recipient.displayName} ${points} points! New total: ${newTotal}`)
+          guildInfo.sendMessage(`${authorAsGuildMember.toString()} gave ${points_recipient.displayName} ${points} points! New total: ${newTotal}`)
         })    // failed to send
     } else {
-      // getGuildInfo(guild_id)
-      //     .then(gi => gi.getPoints(points_recipient_id))
       let curPoints = await guildInfo.getPoints(points_recipient_id)
       msg.channel.send(`${DEV === true ? '(debug) ' : ''}${points_recipient.displayName} has ${curPoints} point${curPoints === 1 ? '' : 's'}.`)
         .catch((err) => {
           console.log(`Failed to send message: ${err.message}. Trying webhook.`)
           // tag them as notification
-          guildInfo.sendMessage(`${authorAsGuildMember.tag}, ${points_recipient.displayName} has ${curPoints} point${curPoints === 1 ? '' : 's'}.`)
+          guildInfo.sendMessage(`${authorAsGuildMember.toString()}, ${points_recipient.displayName} has ${curPoints} point${curPoints === 1 ? '' : 's'}.`)
         })    // failed to send
         
     }
   }
 }
 
-async function linguines_command(msg, [user]) {
+async function linguines_all_command(msg) {
+  let guildID = msg.guild?.id
+  if (guildID === undefined) {
+    console.log(`(Linguines all command) no guild id, was the message sent in a guild? Exiting method`)
+    return undefined
+  }
+
+  let linguineState = await getGuildInfo(guildID).then(g=>g.getAllLinguines())
+  console.debug(linguineState)
+
+  let fmtStrs = []
+  for (let [guildMember, linguines] of linguineState) {
+    // let linguines = linguineState[guildMember]
+    console.debug(guildMember, typeof guildMember)  // this guild member, when asked for a nickname/displayname/username, does not yield one >_> unlike others. and the docs arent super clear
+    // fmtStrs.push(`${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+    // fmtStrs.push(`${user.nickname ?? user.username} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+    fmtStrs.push(`${guildMember.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+  }
+
+  msg.channel.send(`${DEV === true ? `(debug) `: ''}Outstanding Linguines:\n${fmtStrs.join('\n')}`)
+}
+
+/**
+ * 
+ * @param msg Original message (discordjs object)
+ * @param param1 Tokenized arguments (minus the first, which for this command is always `linguines`)
+ * @returns undefined
+ */
+async function linguines_command(msg, [arg2]) {
   let guild_id = msg.guild?.id
   if (guild_id === undefined) {
     console.log(`(Linguines command) no guild id, was the message sent in a guild? Exiting method`)
-    return
+    return undefined
   }
 
-  if (user === undefined) { // grab points of message sender if no arg supplied
-    user = msg.author.id
+  // TODO change command dispatch. Would prefer if command methods did not short out to different commands, unless it's some sort of aggregate command
+  //    better yet, separate the command dispatch from the 'API' accessing linguine internals. Can implement API methods which commands can call on.
+  //    instead of this hot spaghetti mess.
+  if (arg2 === 'all') { // not processing linguines for users, jump to different command
+    linguines_all_command(msg);
+    return undefined
+  }
+
+  if (arg2 === undefined) { // grab points of message sender if no arg supplied
+    arg2 = msg.author.id
   }
 
   let authorAsGuildMember = msg.guild.member(msg.author)
-  let user_id = parseUserMention(user)
+  let user_id = parseUserMention(arg2)
   let member = msg.guild.member(user_id)
 
   if (member !== null) {
@@ -368,6 +441,9 @@ async function linguines_command(msg, [user]) {
       })
     // msg.channel.send(`${DEV === true ? '(debug) ' : ''}${member.toString()} has ${current_linguines} linguine${current_linguines === 1 ? '' : 's'}.`)
   }
+
+  // Function is executed for effect
+  return undefined
 }
 
 async function admin_command(msg, args) { // no arguments are used for now. Just brings up the admin panel
