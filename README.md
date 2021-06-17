@@ -166,6 +166,8 @@ should work but pick one you trust that doesn't already implement a discord bot.
 - Log all commands
     - per guild, user
     - Audit trail that admins can see on the web panel
+    - Command log can be viewed in discord
+    - Logs each method? separate debug log? save off to file?
 
 - Refactor
     - There is a lot (a **lot**) of room to reaaaallly make use of type script, modules, 
