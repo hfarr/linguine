@@ -1,17 +1,18 @@
 {
   "name": "linguine",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Linguine tracker for OQFC",
-  "main": "index.js",
+  "main": "index.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.mjs"
   },
   "keywords": [
     "discord",
     "webapp",
     "bot"
   ],
-  "author": "Henry Farr",
+  "author": "Henry Farr (https://henryfarr.dev)",
   "license": "ISC",
   "dependencies": {
     "axios": "^0.21.1",
