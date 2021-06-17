@@ -221,22 +221,13 @@ function getGuildInfo(guildID) {
         // let fetcher = await client.guilds.fetch(guildID).then(g => id => g.members.fetch(id))
         let guild = await client.guilds.fetch(guildID)
         const fetcher = id => guild.members.fetch(id)
-        console.log('test', typeof await fetcher('846454323856408636'))
 
-        // let allLinguines = {}
-        const zip = (ks,vs) => {  // maybe this just makes a pair-wise list and not an object :I
-          // okay yeah. so when using 'e' as a key, it has to be something hashable. in this case... a string! so we are losing the data here!
-          // ks.forEach( (e,i) => allLinguines[e] = vs[i] )
-          // return allLinguines
-          return ks.map( (k,i) => [k, vs[i]])
-        }
+        // pairwise map and not object because an object is hashed when used on a key (however JS implements that), which can cause potential info loss.
+        //  well. In particular I believe toString() is called, not any kind of hash method.
+        const zip = (ks,vs) => ks.map( (k,i) => [k, vs[i]] )
 
         let sliceParams = [`${guildID}:`.length, -':linguines'.length]
         let usrIDS = await redis.keys(`${guildID}:*:linguines`).then(ks => ks.map(k=>k.slice(...sliceParams)))
-        console.debug(`(debug) got ids: \n`, usrIDS)
-
-        let usrKeys = await redis.keys(`${guildID}:*:linguines`)
-        console.debug(`(debug) got keys: \n`, usrKeys)
 
         // wanted to use compose with redis.get and transform value :/ maybe a Promise compose. because then the work of transforming value to int doesnt have to
         // happen in a loop pass at the end
@@ -388,14 +379,10 @@ async function linguines_all_command(msg) {
   }
 
   let linguineState = await getGuildInfo(guildID).then(g=>g.getAllLinguines())
-  console.debug(linguineState)
+  linguineState.sort( ([_x,x], [_y,y]) => y - x )
 
   let fmtStrs = []
   for (let [guildMember, linguines] of linguineState) {
-    // let linguines = linguineState[guildMember]
-    console.debug(guildMember, typeof guildMember)  // this guild member, when asked for a nickname/displayname/username, does not yield one >_> unlike others. and the docs arent super clear
-    // fmtStrs.push(`${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
-    // fmtStrs.push(`${user.nickname ?? user.username} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
     fmtStrs.push(`${guildMember.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
   }
 
