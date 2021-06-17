@@ -22,7 +22,7 @@ services:
       - "8080:8080"
     working_dir: "/app"
     environment: 
-      - "NODE_ENV=development"
+      - "NODE_ENV=${NODE_ENV:-production}"
       - "DISCORD_TOKEN=${DISCORD_TOKEN}"
       - "CLIENT_ID=${CLIENT_ID}"
       - "CLIENT_SECRET=${CLIENT_SECRET}"
