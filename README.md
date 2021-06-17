@@ -168,6 +168,7 @@ should work but pick one you trust that doesn't already implement a discord bot.
     - Audit trail that admins can see on the web panel
     - Command log can be viewed in discord
     - Logs each method? separate debug log? save off to file?
+    - Dupe all state-changes to webhook channel (as a Ledger of Record) if commands causing the change were issued in other channels
 
 - Refactor
     - There is a lot (a **lot**) of room to reaaaallly make use of type script, modules, 
