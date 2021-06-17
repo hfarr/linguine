@@ -273,7 +273,12 @@ function add_linguines(guild_id, user_id, linguines = 1) {
 
 async function points_command(msg, [user, points_str]) {
 
-  let guild_id = msg.guild.id
+  let guild_id = msg.guild?.id
+
+  if (guild_id === undefined) {
+    console.log(`(Points command) no guild id, was the message sent in a guild? Exiting method`)
+    return
+  }
 
   // arguments in the deconstruction are either strings or undefined, unless someone pulls a big prank. in a module it wouldnt be an issue :eye_roll: because this code would be hidden
   if (user === undefined) { // no argument to !points, so pretend the requesting user passed themselves as an argument
@@ -323,8 +328,11 @@ async function points_command(msg, [user, points_str]) {
 }
 
 async function linguines_command(msg, [user]) {
-  let guild_id = msg.guild.id
-  // let guild_info = guilds[guild_id]
+  let guild_id = msg.guild?.id
+  if (guild_id === undefined) {
+    console.log(`(Linguines command) no guild id, was the message sent in a guild? Exiting method`)
+    return
+  }
 
   if (user === undefined) { // grab points of message sender if no arg supplied
     user = msg.author.id
@@ -352,11 +360,19 @@ const COMMANDS = {
   linguines: linguines_command,
 }
 
+function cmdParse(text) {
+  let argMatcher = /(?<arg>\S+)(?:\s*)/g
+  let matches = text.matchAll(argMatcher)
+  let arguments = [...matches].map(m => m.groups.arg)
+
+  return arguments
+}
+
 // Everything after the !
 // TODO make this a "registered commands" deal, so we don't have to explicitly know what commands are registered, this just calls the relevant handler
 //  if it matches. We register a handle for matching patterns when needed.
 function handle_cmd(msg) {
-  let [command, ...args] = msg.content.split(" ")
+  let [command, ...args] = cmdParse(msg.content)
 
   let func = COMMANDS[command.toLocaleLowerCase().slice(CMD_PREFIX.length)]
   if (func !== undefined) {
