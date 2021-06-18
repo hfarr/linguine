@@ -379,14 +379,12 @@ async function linguines_all_command(msg) {
   }
 
   let linguineState = await getGuildInfo(guildID).then(g=>g.getAllLinguines())
-  linguineState.sort( ([_x,x], [_y,y]) => y - x )
+  let userLinguineAnnouncements = linguineState
+    .filter( ([user, linguines]) => linguines > 0 )
+    .sort( ([_x,x], [_y,y]) => y - x )
+    .map(([user, linguines]) => `${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
 
-  let fmtStrs = []
-  for (let [guildMember, linguines] of linguineState) {
-    fmtStrs.push(`${guildMember.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
-  }
-
-  msg.channel.send(`${DEV === true ? `(debug) `: ''}Outstanding Linguines:\n${fmtStrs.join('\n')}`)
+  msg.channel.send(`${DEV === true ? `(debug) `: ''}Outstanding Linguines:\n${userLinguineAnnouncements.join('\n')}`)
 }
 
 /**
