@@ -496,7 +496,7 @@ const CMD_PREFIX = '!'
 const COMMANDS = {
   points: points_command,
   linguines: linguines_command,
-  admin: admin_command,
+  // admin: admin_command,
 }
 
 function cmdParse(text) {
