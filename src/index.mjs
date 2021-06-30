@@ -25,7 +25,7 @@ const redis = new Redis(DB_HOST);
 
 // This link lets someone register their bot to a server, and set up a webhook. 
 // TODO gracefully handle cases where necessary permissions are not granted.
-const CURRENT_LINK = "https://discord.com/api/oauth2/authorize?client_id=846454323856408636&permissions=536939520&redirect_uri=https%3A%2F%2Flinguine.hfarr.net%2Fapi%2Ftoken&response_type=code&scope=bot%20webhook.incoming"
+const CURRENT_LINK = process.env.BOT_LINK
 
 app.use('/interaction', express.json())
 app.all('/interaction', (req, res) => {
@@ -46,7 +46,7 @@ app.all('/interaction', (req, res) => {
 
 app.get('/', (req, res) => {
   res.send(`<h1>Add linguine to your server</h1>
-<a href=${CURRENT_LINK}>Click here to complete the bot registration work flow.</a>`)
+<p>Click <bold><a href=${CURRENT_LINK}>here</a></bold> to complete the bot registration work flow.</p>`)
 
 })
 
@@ -62,7 +62,8 @@ const API_OAUTH_TOKEN_ENDPOINT = 'https://discord.com/api/oauth2/token'
 const CLIENT_ID = `${process.env.CLIENT_ID}`
 const CLIENT_SECRET = `${process.env.CLIENT_SECRET}`
 // might have to use. Im not 100% positive what happens when you give a different redirect to the one used for code granting.
-const REDIRECT_URI = 'https://linguine.hfarr.net/api/token'
+const REDIRECT_URI = process.env.REDIRECT_URI
+console.log(REDIRECT_URI)
 
 // returns a promise, yay async
 function exchange_code(code) {
@@ -104,7 +105,7 @@ app.get('/api/token', (req, res) => {
   }
 
   console.log('Bot registration')
-  res.status(503).send("Registration temporarily unavailable")
+  // res.status(503).send("Registration temporarily unavailable")
   exchange_code(code)
     .then(discord_response => { // could call it success response
       console.log(`Status: ${discord_response.status}`)
@@ -123,8 +124,8 @@ app.get('/api/token', (req, res) => {
 
 // TODO opposite of this for bot removed. This means cleaning out the DB.
 function new_registration(info) {
-  console.error("Registrations temporarily closed");
-  return
+  // console.error("Registrations temporarily closed");
+  // return
   let { access_token, refresh_token, token_type, guild, webhook } = info
 
   // how we'll identify the bot
@@ -388,7 +389,7 @@ async function linguines_all_command(msg) {
 }
 
 /**
- * 
+ *
  * @param msg Original message (discordjs object)
  * @param param1 Tokenized arguments (minus the first, which for this command is always `linguines`)
  * @returns undefined
