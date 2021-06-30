@@ -34,20 +34,23 @@ const InteractionCallbackTypes = { //https://discord.com/developers/docs/interac
   ChannelMessageWithSource: 4,  // Immediate response, appears as a "reply" to the user interaction. If its a component, responds to itself
   DeferredChannelMessageWithSource: 5,  // Deferred response, appears as a loading state, until callback is made resolving to same as above
   DeferredUpdateMessage: 6, // (component only) Deferred response. No loading state. When callback made, original message is updated
-  UpdateMessage: 7,         // (component only) Immedaite response, updates original componentes message
+  UpdateMessage: 7,         // (component only) Immediate response, updates original componentes message
 }
 
+// some of these names are a little hard to follow
+
+// Respond immediately
 function immediateResponse(content) {
   return { 
     type: InteractionCallbackTypes.ChannelMessageWithSource,
-    content
+    data: content
   }
 }
 
 function immediateComponentResponse(content) {
   return {
     type: InteractionCallbackTypes.UpdateMessage,
-    content
+    data: content
   }
 }
 
@@ -56,6 +59,7 @@ function immediateComponentResponse(content) {
 const CurrentInteractions = {
 
 }
+
 
 // Returns interaction associated with snowflake, of which there can be at most 1
 //  Will create if it does not exist or return an existing one
@@ -78,6 +82,77 @@ function ComponentInteractionResponse() {
 
 }
 
+// construct the handler as an interface of sorts, to describe what a handler looks like?
+// instead of a concrete? maybe later
+// e.g SlashCommandInterHandler, ComponentInterHandler
+// class InterfaceInteractionHandler {  // or InteractionHandlerMixin, or both
+
+// }
+
+// A handler receives interactions and either handles them or doesn't
+//  Constructed with a handlermethod, which describes actions to take if 
+//  the spplied predicate evaluates to true for a given interaction
+//
+//  An interaction can only be handled once
+class InteractionHandler {
+
+  constructor(handlerMethod, predicate) {
+    this.handlerMethod = handlerMethod
+    this.predicate = predicate
+  }
+
+  // predicate
+  shouldHandle(interactionEvent) {
+    if (interactionEvent.handled) {
+      return false
+    }
+    return this.predicate(interactionEvent)
+  }
+
+  handle(interactionEvent) {
+    if (this.shouldHandle(interactionEvent)) {
+      interactionEvent.handle()
+      this.handlerMethod(interactionEvent)
+    }
+    return false
+  }
+}
+
+class InteractionEvent {
+
+  constructor(interactionData) {
+    this.interactionData = interactionData
+  }
+  
+  handled = false
+
+  get interactionData() { return this.interactionData }
+  get handled() { return this.handled }
+
+  handle() {
+    this.handled = true
+  }
+
+}
+
+// An interaction as described by the discord API
+class Interaction {
+
+  constructor(interactionData) {
+
+  }
+
+}
+
+class CommandInteraction extends Interaction {
+}
+class ComponentInteraction extends Interaction {
+}
+
+
+interactionHandlers = []
+
+// TODO Async methods in classes? I'd prefer to have a "HandlerEngine" or "InteractionEngine" objects instead of module level methods and variables
 /**
  * Gateway for all interactions. Returns a promise that resolves when the given
  * request is handled - either by returning data for an "immediate response" type 4 interaction,
@@ -85,7 +160,18 @@ function ComponentInteractionResponse() {
  * 
  * @param interactionData Interaction object from discord https://discord.com/developers/docs/interactions/slash-commands#interaction
  */
-async function handle(interactionData) {
+async function handle(interactionData) {  // creates AND handles an InteractionEvent
+
+
+  ////////
+  interactionEvent = new InteractionEvent(interactionData)
+  interactionHandlers.forEach(h => h.handle(interactionEvent))
+  
+
+  return
+  /////////////////////////////////////////////////////
+
+
 
   // console.debug is an alias to console.log
   console.debug('Received interaction')
@@ -112,6 +198,11 @@ async function handle(interactionData) {
       return immediateResponse(); // no data, no 'content', content is undefined so it shouldnt post a message
   }
 
+    
+}
+
+async function addHandler(interactionHandler) {
+  interactionHandler.push(interactionHandler)
 }
 
 export default { handle };
