@@ -54,6 +54,11 @@ function immediateComponentResponse(content) {
   }
 }
 
+// Hmm
+// Should we go Ham in our API implementation? like discordjs? I think not
+function InteractionResponse() {}
+function ComponentInteractionResponse() {}
+
 // In memory store of on-going interactions.
 // Keyed by ID, value is an Interaction https://discord.com/developers/docs/interactions/slash-commands#interaction
 const CurrentInteractions = {
@@ -72,15 +77,6 @@ async function getInteraction(snowflake, data) {
 }
 
 
-// Hmm
-// Should we go Ham in our API implementation? like discordjs? I think not
-function InteractionResponse() {
-
-}
-
-function ComponentInteractionResponse() {
-
-}
 
 // construct the handler as an interface of sorts, to describe what a handler looks like?
 // instead of a concrete? maybe later
@@ -121,12 +117,14 @@ class InteractionHandler {
 class InteractionEvent {
 
   constructor(interactionData) {
-    this.interactionData = interactionData
+    this.originalInteractionData = interactionData
+    Object.freeze(this.originalInteractionData)
+    console.debug('New InteractionEvent')
   }
   
   handled = false
 
-  get interactionData() { return this.interactionData }
+  get interactionData() { return this.originalInteractionData }
   get handled() { return this.handled }
 
   handle() {
@@ -135,10 +133,30 @@ class InteractionEvent {
 
 }
 
+// from a framework perspective - manually doing this boilerplate for every kind of object is a road to upsetti
+// a preferred way is implement the pattern of 'unpacking' an object in a class constructor, by just
+// specififying class fields. then it unpacks those objects into the instance of the class.
+// 
+
 // An interaction as described by the discord API
 class Interaction {
 
-  constructor(interactionData) {
+  constructor(interactionData = {}) {
+    // unpacking
+    let { id, application_id, type, data, guild_id, 
+      channel_id, member, user, token, version, message } = interactionData
+
+    this.id = id
+    this.application_id = application_id 
+    this.type = type
+    this.data = data
+    this.guld_id = guld_id
+    this.channel_id = channel_id
+    this.member = member
+    this.user = user
+    this.token = token
+    this.version = version
+    this.message = message
 
   }
 
@@ -149,8 +167,17 @@ class CommandInteraction extends Interaction {
 class ComponentInteraction extends Interaction {
 }
 
+// promises to handle? so then we just do Promises.all or whatever
+// tricky nugget - could lead to multiple handles. I expect a degree of mutual exclusion in handlers.
+//    I think it would be *nice* to go full async here. But I do not want to sacrifice the ability to control
+//    whether I use an immediate response or not.
+let interactionHandlers = [
+  (event) => { return new Promise((resolve, reject) => {
+    setTimeout(() => reject('No handlers invoked'), 1000)
+  })}
+]
 
-interactionHandlers = []
+let defaultResponse = immediateResponse("Work in progress!")
 
 // TODO Async methods in classes? I'd prefer to have a "HandlerEngine" or "InteractionEngine" objects instead of module level methods and variables
 /**
@@ -162,16 +189,27 @@ interactionHandlers = []
  */
 async function handle(interactionData) {  // creates AND handles an InteractionEvent
 
-
   ////////
-  interactionEvent = new InteractionEvent(interactionData)
-  interactionHandlers.forEach(h => h.handle(interactionEvent))
+  let interactionEvent = new InteractionEvent(interactionData)
+  // interactionHandlers.forEach(h => h(interactionEvent))
   
+  // first handler to handle the interaction wins. This is okay because I expect that exactly one will, in most cases.
+  // For now, I will conisder it an anti-pattern for more than one handler to 'handle' an interaction. Later I may wish to
+  // incorporate some activities that happen for *any* or *arbitrary* interactions regardless of its handling status. For that
+  // I think it would be better to use "listeners" which don't connote 'handling' an interaction in the same way. They may 
+  // do other stuff but we don't have to wait for them.
 
-  return
+  // TODO - mutual access to interaction event. Thankfully calling "handle()" is idempotent, we are immune to race conditions. But we aren't being careful,
+  // and it is possible that multiple handlers read the handle value and see "ah, I can handle this" but the semantics of handling promote, once again,
+  // one and only one handler, so getting that overlap is a problem. We just don't explicitly prevent it.
+  let result = Promise.any(interactionHandlers.map(h => h(interactionEvent)))
+    .catch(() => defaultResponse)
+  console.debug('Handlers called')
+
+  // what to return here? the first handler that response? 
+  //  should be promises then. If none respond, i.e all promises reject - return a fail.
+  return result
   /////////////////////////////////////////////////////
-
-
 
   // console.debug is an alias to console.log
   console.debug('Received interaction')

@@ -28,17 +28,27 @@ const redis = new Redis(DB_HOST);
 const CURRENT_LINK = process.env.BOT_LINK
 
 app.use('/interaction', express.json())
-app.all('/interaction', (req, res) => {
+app.all('/interaction', async (req, res) => {
+  console.debug('Interaction endpoint hit')
 
   let body = req.body
-  let handlerResponse
+  let handlerResponse = undefined
   if (body !== undefined) {
-    handlerResponse = Interactor.handle(body)
+    console.debug("Received interaction")
+    console.debug(body)
+    try {
+      handlerResponse = await Interactor.handle(body)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   if (handlerResponse !== undefined) {
+    console.debug("Non nonsense response")
+    console.debug(handlerResponse)
     res.status(200).json(handlerResponse)
   } else {
+    console.debug('No response from handler - unhandled?')
     res.status(500)
   }
 })
