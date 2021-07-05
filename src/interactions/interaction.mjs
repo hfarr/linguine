@@ -1,6 +1,8 @@
 'use strict'
 
 import axios from 'axios';
+import InteractionContext from './interactionContext.mjs';
+console.log(`Debug: ${typeof InteractionContext}`)
 
 const DISCORD_CALLBACK_BASE = "https://discord.com/api/v8"
 
@@ -22,6 +24,42 @@ const DISCORD_CALLBACK_BASE = "https://discord.com/api/v8"
 /*
 class 
 */
+
+// An interaction as described by the discord API
+class Interaction {
+
+  constructor(interactionData = {}) {
+    // unpacking
+    let { id, application_id, type, data, guild_id, 
+      channel_id, member, user, token, version, message } = interactionData
+
+    this.id = id
+    this.application_id = application_id 
+    this.type = type
+    this.data = data
+    this.guld_id = guild_id
+    this.channel_id = channel_id
+    this.member = member
+    this.user = user
+    this.token = token
+    this.version = version
+    this.message = message
+
+  }
+
+}
+
+class ApplicationCommand extends Interaction {
+}
+class MessageComponent extends Interaction {
+}
+
+function categorizeInteraction(interactionData = {}) {
+  let { id } = interactionData
+  console.debug(`Creating object to represent interaction with id ${id}`)
+
+  return new Interaction(interactionData)
+}
 
 const InteractionTypes = {
   Ping: 1,
@@ -59,9 +97,15 @@ function immediateComponentResponse(content) {
   }
 }
 
+// great naming..
+function componentResponseNoMessage() {
+  return {
+    type: InteractionCallbackTypes.DeferredUpdateMessage
+  }
+}
+
 // Hmm
 // Should we go Ham in our API implementation? like discordjs? I think not
-function InteractionResponse() {}
 function ComponentInteractionResponse() {}
 
 // In memory store of on-going interactions.
@@ -81,107 +125,116 @@ async function getInteraction(snowflake, data) {
   return CurrentInteractions[snowflake]
 }
 
+class Interactor {
+  constructor(contexts) {
+    this.interactionContexts = contexts // classes that can be instanced on receipt of a new interaction
+  }
+}
 
+class CountEmUp extends InteractionContext {
 
-// construct the handler as an interface of sorts, to describe what a handler looks like?
-// instead of a concrete? maybe later
-// e.g SlashCommandInterHandler, ComponentInterHandler
-// class InterfaceInteractionHandler {  // or InteractionHandlerMixin, or both
-
-// }
-
-// A handler receives interactions and either handles them or doesn't
-//  Constructed with a handlermethod, which describes actions to take if 
-//  the spplied predicate evaluates to true for a given interaction
-//
-//  An interaction can only be handled once
-class InteractionHandler {
-
-  constructor(handlerMethod, predicate) {
-    this.handlerMethod = handlerMethod
-    this.predicate = predicate
+  constructor(...args) {
+    super(...args)
   }
 
-  // predicate
-  shouldHandle(interactionEvent) {
-    if (interactionEvent.handled) {
-      return false
+  currentState = "initial"
+  counter = 0
+  incrID = `${this.uid}_incr`
+  freezeID = `${this.uid}_freeze`
+
+  initialStateComponents = [
+    {
+      type: 1, // ActionRow
+      components: [
+        {
+          type: 2,  // button
+          style: 2,  // "Secondary" grey button
+          label: 'Increment', 
+          custom_id: this.incrID,
+        },
+        {
+          type: 2,  // button
+          style: 1,  // "Primary" blurple button
+          label: 'Freeze', 
+          custom_id: this.freezeID,
+        },
+      ]
     }
-    return this.predicate(interactionEvent)
-  }
+  ]
 
-  handle(interactionEvent) {
-    if (this.shouldHandle(interactionEvent)) {
-      interactionEvent.handle()
-      this.handlerMethod(interactionEvent)
+  matchesAny(interactionCustomID) {
+    let validIDs = [this.incrID, this.freezeID]
+    for (let cid of validIDs) {
+      if (cid === interactionCustomID)
+        return true
     }
     return false
   }
-}
 
-class InteractionEvent {
+  stateInitial(interaction) {
+    console.log("INITIAL STATE INTERACTION")
+    console.log(interaction.data)
+    // console.log(interaction.data?.custom_id)
 
-  constructor(interactionData) {
-    this.originalInteractionData = interactionData
-    Object.freeze(this.originalInteractionData)
-    console.debug('New InteractionEvent')
+    if (interaction.data?.custom_id !== undefined) {
+
+      if (interaction.data.custom_id === this.incrID) {
+        this.counter++
+        this.editOriginal({
+          content: `Counter: ${this.counter}! ID: ${this.uid}`,
+        })
+      }
+
+      // component interaction
+      return componentResponseNoMessage()
+    } else {
+      // slash-command interaction - completely new instance
+      return immediateResponse({
+        content: `Counter: ${this.counter}! ID: ${this.uid}`,
+        components: this.initialStateComponents,
+      })
+    }
+    // unpack interaction
   }
-  
-  handled = false
 
-  get interactionData() { return this.originalInteractionData }
-  get handled() { return this.handled }
-
-  handle() {
-    this.handled = true
-  }
-
-}
-
-// from a framework perspective - manually doing this boilerplate for every kind of object is a road to upsetti
-// a preferred way is implement the pattern of 'unpacking' an object in a class constructor, by just
-// specififying class fields. then it unpacks those objects into the instance of the class.
-// 
-
-// An interaction as described by the discord API
-class Interaction {
-
-  constructor(interactionData = {}) {
-    // unpacking
-    let { id, application_id, type, data, guild_id, 
-      channel_id, member, user, token, version, message } = interactionData
-
-    this.id = id
-    this.application_id = application_id 
-    this.type = type
-    this.data = data
-    this.guld_id = guld_id
-    this.channel_id = channel_id
-    this.member = member
-    this.user = user
-    this.token = token
-    this.version = version
-    this.message = message
+  stateFrozen(interaction) {
 
   }
 
+  shouldHandle(interaction) {
+    if (super.shouldHandle(interaction)) {
+      return true
+    }
+    if ( interaction.message !== undefined ) { // then the interaction is a component interaction. the message object should have an interaction object of itself, representing the original response we sent for this given chain.
+      return interaction.message.interaction.id === this.initialInterID
+    } 
+    // I think I can jump straight to this.matchesAny(interaction.data?.custom_id)
+    if (interaction.data?.custom_id !== undefined) {
+      return this.matchesAny(interaction.data.custom_id)
+    }
+  }
+
+  consume(interaction) {
+    console.debug(`Consuming interaction from ${this.uid}`)
+    // console.log(this.uid, this.interactionToken)
+    // console.log(interaction.token)
+    console.debug(interaction)
+    switch(this.currentState) {
+      case 'initial': 
+        return this.stateInitial(interaction)
+        break;
+      case 'frozen': 
+        break;
+      default: 
+        console.error("Invalid state")
+    }
+
+  }
 }
 
-class CommandInteraction extends Interaction {
-}
-class ComponentInteraction extends Interaction {
-}
 
-// promises to handle? so then we just do Promises.all or whatever
-// tricky nugget - could lead to multiple handles. I expect a degree of mutual exclusion in handlers.
-//    I think it would be *nice* to go full async here. But I do not want to sacrifice the ability to control
-//    whether I use an immediate response or not.
-let interactionHandlers = [
-  (event) => Promise.reject('No handlers invoked'),
-  // (event) => { return new Promise((resolve, reject) => {
-  //   setTimeout(() => reject('No handlers invoked'), 1000)
-  // })}
-]
+// Promises~
+let interactionContexts = []
 
 let defaultResponse = immediateMessageResponse("Work in progress!")
 
@@ -196,7 +249,7 @@ let defaultResponse = immediateMessageResponse("Work in progress!")
 async function handle(interactionData) {  // creates AND handles an InteractionEvent
 
   ////////
-  let interactionEvent = new InteractionEvent(interactionData)
+  // let interactionEvent = new InteractionEvent(interactionData)
   // interactionHandlers.forEach(h => h(interactionEvent))
   
   // first handler to handle the interaction wins. This is okay because I expect that exactly one will, in most cases.
@@ -205,13 +258,43 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   // I think it would be better to use "listeners" which don't connote 'handling' an interaction in the same way. They may 
   // do other stuff but we don't have to wait for them.
 
+  // categorize may not be the best verb. It creates an Interaction (either ApplicationCommand or MessageComponent)
+  let interaction = categorizeInteraction(interactionData)
+
+  // not very efficient - if we restrict ourselves to the idea that interactions belong to one and only one
+  // context, then we should be able to just look up the context an interaction belongs to in constant time.
+  // but I like the flexibility and don't particularly mind the cost we're paying with this O(n) invocation, for now.
+  // plus this is global across all guilds dms! which could slow it down more. But no pre-optimizing.
+  let existingContexts = [
+    Promise.reject('No contexts used'),
+    ...interactionContexts.map(handler => handler.handle(interaction))
+  ]
+
   // TODO - mutual access to interaction event. Thankfully calling "handle()" is idempotent, we are immune to race conditions. But we aren't being careful,
   // and it is possible that multiple handlers read the handle value and see "ah, I can handle this" but the semantics of handling promote, once again,
   // one and only one handler, so getting that overlap is a problem. We just don't explicitly prevent it.
-  let result = Promise.any(interactionHandlers.map(h => h(interactionEvent)))
+
+  // or - treat this better. Commands generate a new context, components dont (except - thats not true, is it?)
+  // we need a way to decide what context to create. Because we must differentiate behavior.
+
+  let result = Promise.any(existingContexts)
     .catch((e) => {
       console.error(e.message)
       console.error(e.errors)
+      // No handlers took up the interaction - creating new handler
+      // let newContext = new InteractionContext(interaction)
+      let newContext = new CountEmUp(interaction)
+
+      // need a way to remove these too
+      interactionContexts.push(newContext)
+
+      return newContext.handle(interaction)
+      // return Promise.resolve(immediateMessageResponse('hi'))
+    })
+    .catch((e) => {
+      console.error("Something big broke")
+      console.error(e)
+      console.error(e?.message)
       return defaultResponse
     })
   console.debug('Handlers called')
@@ -226,7 +309,7 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   console.debug(interactionData)
 
   let { id } = interactionData ?? {}
-  let interaction
+  // let interaction
   if (id !== undefined) {
     interaction = getInteraction(id, interactionData)
   } else {

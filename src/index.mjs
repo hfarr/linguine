@@ -1,7 +1,8 @@
 'use strict';
 import querystring from 'querystring'
 
-import Interactor from './interaction.mjs'
+import Interactor from './interactions/interaction.mjs'
+import InteractionContext from './interactions/interactionContext.mjs';
 
 import express from 'express'
 import discord from 'discord.js'
@@ -29,13 +30,12 @@ const CURRENT_LINK = process.env.BOT_LINK
 
 app.use('/interaction', express.json())
 app.all('/interaction', async (req, res) => {
-  console.debug('Interaction endpoint hit')
 
   let body = req.body
   let handlerResponse = undefined
   if (body !== undefined) {
-    console.debug("Received interaction")
-    console.debug(body)
+    console.debug("Received interaction\n-----------------------------------------------------------------")
+    // console.debug(body)
     try {
       handlerResponse = await Interactor.handle(body)
     } catch (e) {
