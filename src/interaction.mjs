@@ -31,8 +31,8 @@ const InteractionTypes = {
 
 const InteractionCallbackTypes = { //https://discord.com/developers/docs/interactions/slash-commands#interaction-response-interactioncallbacktype
   Pong: 1,
-  ChannelMessageWithSource: 4,  // Immediate response, appears as a "reply" to the user interaction. If its a component, responds to itself
-  DeferredChannelMessageWithSource: 5,  // Deferred response, appears as a loading state, until callback is made resolving to same as above
+  ImmediateMessageResponse: 4,  // Immediate response, appears as a "reply" to the user interaction. If its a component, responds to itself
+  RespondLater: 5,  // Deferred response, appears as a loading state, until callback is made resolving to same as above
   DeferredUpdateMessage: 6, // (component only) Deferred response. No loading state. When callback made, original message is updated
   UpdateMessage: 7,         // (component only) Immediate response, updates original componentes message
 }
@@ -42,9 +42,14 @@ const InteractionCallbackTypes = { //https://discord.com/developers/docs/interac
 // Respond immediately
 function immediateResponse(content) {
   return { 
-    type: InteractionCallbackTypes.ChannelMessageWithSource,
+    type: InteractionCallbackTypes.ImmediateMessageResponse,
     data: content
   }
+}
+function immediateMessageResponse(message) {
+  return immediateResponse({
+    content: message,
+  })
 }
 
 function immediateComponentResponse(content) {
@@ -172,12 +177,13 @@ class ComponentInteraction extends Interaction {
 //    I think it would be *nice* to go full async here. But I do not want to sacrifice the ability to control
 //    whether I use an immediate response or not.
 let interactionHandlers = [
-  (event) => { return new Promise((resolve, reject) => {
-    setTimeout(() => reject('No handlers invoked'), 1000)
-  })}
+  (event) => Promise.reject('No handlers invoked'),
+  // (event) => { return new Promise((resolve, reject) => {
+  //   setTimeout(() => reject('No handlers invoked'), 1000)
+  // })}
 ]
 
-let defaultResponse = immediateResponse("Work in progress!")
+let defaultResponse = immediateMessageResponse("Work in progress!")
 
 // TODO Async methods in classes? I'd prefer to have a "HandlerEngine" or "InteractionEngine" objects instead of module level methods and variables
 /**
@@ -203,7 +209,11 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   // and it is possible that multiple handlers read the handle value and see "ah, I can handle this" but the semantics of handling promote, once again,
   // one and only one handler, so getting that overlap is a problem. We just don't explicitly prevent it.
   let result = Promise.any(interactionHandlers.map(h => h(interactionEvent)))
-    .catch(() => defaultResponse)
+    .catch((e) => {
+      console.error(e.message)
+      console.error(e.errors)
+      return defaultResponse
+    })
   console.debug('Handlers called')
 
   // what to return here? the first handler that response? 
