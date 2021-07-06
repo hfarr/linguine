@@ -270,13 +270,6 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
     ...interactionContexts.map(handler => handler.handle(interaction))
   ]
 
-  // TODO - mutual access to interaction event. Thankfully calling "handle()" is idempotent, we are immune to race conditions. But we aren't being careful,
-  // and it is possible that multiple handlers read the handle value and see "ah, I can handle this" but the semantics of handling promote, once again,
-  // one and only one handler, so getting that overlap is a problem. We just don't explicitly prevent it.
-
-  // or - treat this better. Commands generate a new context, components dont (except - thats not true, is it?)
-  // we need a way to decide what context to create. Because we must differentiate behavior.
-
   let result = Promise.any(existingContexts)
     .catch((e) => {
       console.error(e.message)
@@ -289,10 +282,9 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
       interactionContexts.push(newContext)
 
       return newContext.handle(interaction)
-      // return Promise.resolve(immediateMessageResponse('hi'))
     })
     .catch((e) => {
-      console.error("Something big broke")
+      console.error("Failed in handling")
       console.error(e)
       console.error(e?.message)
       return defaultResponse
@@ -302,33 +294,6 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   // what to return here? the first handler that response? 
   //  should be promises then. If none respond, i.e all promises reject - return a fail.
   return result
-  /////////////////////////////////////////////////////
-
-  // console.debug is an alias to console.log
-  console.debug('Received interaction')
-  console.debug(interactionData)
-
-  let { id } = interactionData ?? {}
-  // let interaction
-  if (id !== undefined) {
-    interaction = getInteraction(id, interactionData)
-  } else {
-    console.log('Invalid ID!')
-  }
-
-  // prototype for linguine
-
-  let { type } = (await interaction) ?? {}
-  switch(type) {
-    case InteractionTypes.ApplicationComment:
-      return immediateResponse("I see you .. .")
-    case InteractionTypes.MessageComponent:
-      // let { data: { }}
-      return immediateComponentResponse("Okay!")
-    default:
-      return immediateResponse(); // no data, no 'content', content is undefined so it shouldnt post a message
-  }
-
     
 }
 
