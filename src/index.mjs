@@ -37,7 +37,7 @@ app.all('/interaction', async (req, res) => {
   let body = req.body
   let handlerResponse = undefined
   if (body !== undefined) {
-    console.debug("Received interaction\n-----------------------------------------------------------------")
+    console.debug("-----------------------------------------------------------------\nReceived interaction\n-----------------------------------------------------------------")
     // console.debug(body)
     try {
       handlerResponse = await Interactor.handle(body)
