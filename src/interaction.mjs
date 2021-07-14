@@ -159,18 +159,11 @@ async function addHandler(handlerMethod, handlerPredicate) {
 export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
 
   // Creates a predicate that matches an interaction for the invocation of a slash command
-  // TODO accept a slash-command like object?
   static command(...commandChain) {   // command, command subcommand, command subcommandgroup subcommand ...
-    // command or subcommand 
-    // at least, I want this to work equivalently for both. handling a command WITH subcommands will indicate handling each of its subcommands.
-    // otherwise, it traverses the sub(group|command) structure until it matches a name
 
-    // inspect interactionData to see if the command matches
+    // inspect interactionData to see if the command (or subcommand) matches
     return (interactionData) => {
 
-      console.debug("Matching for", commandChain)
-
-      // TODO stubbed
       let { type, data } = interactionData
       if (type === 2) { // its a command (APPLICATION_COMMAND that is, slash commands)
         // may just need name. could also go by id of command? mm but that differs. See.
@@ -178,16 +171,13 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
         let { name: nameToCheck, options = {} } = data
 
         for (let matchName of commandChain) {
-          console.debug("Looking to see if", matchName, "matches", nameToCheck)
           if (matchName !== nameToCheck) {
             return false
           }
           // iterate to the next command nesting layer. Options are arrays, unpack accordingly.
           // We are expecting a subcommand, so we only look at the first item in the array - itself an ApplicationCommandOption that represents a subcommand.
           //    if a command has a subcommand and it's used the options array is a singleton, representing the subcommand, ditto for subgroups.
-          console.debug("Next layer of options:", JSON.stringify(options));
           ({ name: nameToCheck, options = {} } = options[0])
-          console.debug(nameToCheck, JSON.stringify(options))
         }
 
         return true
@@ -212,7 +202,7 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
   static and(...predicates) {
 
     return (interactionData) => {
-      return !Predicate.or(predicates.map(Predicate.not))
+      return !Predicate.or(predicates.map(Predicate.not(interactionData)))
     }
 
     // return (interactionData) => {
