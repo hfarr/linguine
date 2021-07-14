@@ -141,9 +141,9 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   let interactionEvent = new InteractionEvent(interactionData)
   let handlerPromises = interactionHandlers.map(h => h.handle(interactionEvent))
   let response = Promise.any(handlerPromises)
-    .catch((e) => {
-      console.error(e.message)
-      console.error(e.errors)
+    .catch((e) => { // None of the handlers handled the interaction
+      console.debug(e.message)
+      // console.error(e.errors)  // list of the rejected values
       return defaultResponse
     })
 
