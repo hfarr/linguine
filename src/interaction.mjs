@@ -41,7 +41,7 @@ const InteractionCallbackTypes = { //https://discord.com/developers/docs/interac
 
 // Respond immediately
 function immediateResponse(content) {
-  return { 
+  return {
     type: InteractionCallbackTypes.ChannelMessageWithSource,
     data: content
   }
@@ -64,7 +64,7 @@ const CurrentInteractions = {
 // Returns interaction associated with snowflake, of which there can be at most 1
 //  Will create if it does not exist or return an existing one
 async function getInteraction(snowflake, data) {
-  if ( !(snowflake in CurrentInteractions) ) {
+  if (!(snowflake in CurrentInteractions)) {
     console.debug("TODO new interactions as classes")
     CurrentInteractions[id] = data
   }
@@ -101,18 +101,24 @@ class InteractionHandler {
     this.predicate = predicate
   }
 
-  // predicate
+  // Checks if event has already been handled. If not,
+  // calls predicate with interaction data to determine if
+  // this handler should handle the interaction.
   shouldHandle(interactionEvent) {
     if (interactionEvent.handled) {
       return false
     }
-    return this.predicate(interactionEvent)
+    return this.predicate(interactionEvent.interactionData)
   }
 
+  // Process an interaction event, calling the handler
+  // on it if appropriate.
+  // Returns whether or not this handler handled the event.
   handle(interactionEvent) {
     if (this.shouldHandle(interactionEvent)) {
       interactionEvent.handle()
       this.handlerMethod(interactionEvent)
+      return true
     }
     return false
   }
@@ -121,12 +127,12 @@ class InteractionHandler {
 class InteractionEvent {
 
   constructor(interactionData) {
-    this.interactionData = interactionData
+    this.interactionDataBody = interactionData
   }
-  
+
   handled = false
 
-  get interactionData() { return this.interactionData }
+  get interactionData() { return this.interactionDataBody }
   get handled() { return this.handled }
 
   handle() {
@@ -150,9 +156,11 @@ class ComponentInteraction extends Interaction {
 }
 
 
-interactionHandlers = []
+let interactionHandlers = []
 
 // TODO Async methods in classes? I'd prefer to have a "HandlerEngine" or "InteractionEngine" objects instead of module level methods and variables
+//  ^^^ Side note, this is not "async safe"? Should likely read up on safety in async. ATM it calls each handler synchronously. But I thought
+//      I did this work already. Did I chuck it out in favor of the simpler yet not as satisfying synchronous solution?
 /**
  * Gateway for all interactions. Returns a promise that resolves when the given
  * request is handled - either by returning data for an "immediate response" type 4 interaction,
@@ -162,11 +170,12 @@ interactionHandlers = []
  */
 async function handle(interactionData) {  // creates AND handles an InteractionEvent
 
-
   ////////
-  interactionEvent = new InteractionEvent(interactionData)
+  // TODO
+  console.debug("Handling interaction", interactionData)
+
+  let interactionEvent = new InteractionEvent(interactionData)
   interactionHandlers.forEach(h => h.handle(interactionEvent))
-  
 
   return
   /////////////////////////////////////////////////////
@@ -188,7 +197,7 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   // prototype for linguine
 
   let { type } = (await interaction) ?? {}
-  switch(type) {
+  switch (type) {
     case InteractionTypes.ApplicationComment:
       return immediateResponse("I see you .. .")
     case InteractionTypes.MessageComponent:
@@ -198,13 +207,90 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
       return immediateResponse(); // no data, no 'content', content is undefined so it shouldnt post a message
   }
 
-    
+
 }
 
-async function addHandler(interactionHandler) {
-  interactionHandler.push(interactionHandler)
+async function addHandler(handlerMethod, handlerPredicate) {
+  const handler = new InteractionHandler(handlerMethod, handlerPredicate)
+  interactionHandlers.push(handler)
 }
 
-export default { handle };
+export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
+
+  // Creates a predicate that matches an interaction for the invocation of a slash command
+  // TODO accept a slash-command like object?
+  static command(...commandChain) {   // command, command subcommand, command subcommandgroup subcommand ...
+    // command or subcommand 
+    // at least, I want this to work equivalently for both. handling a command WITH subcommands will indicate handling each of its subcommands.
+    // otherwise, it traverses the sub(group|command) structure until it matches a name
+
+    // inspect interactionData to see if the command matches
+    return (interactionData) => {
+
+      console.debug("Matching for", commandChain)
+
+      // TODO stubbed
+      let { type, data } = interactionData
+      if (type === 2) { // its a command (APPLICATION_COMMAND that is, slash commands)
+        // may just need name. could also go by id of command? mm but that differs. See.
+        // we really need. a local reference of the commands we create.
+        let { name: nameToCheck, options = {} } = data
+
+        for (let matchName of commandChain) {
+          console.debug("Looking to see if", matchName, "matches", nameToCheck)
+          if (matchName !== nameToCheck) {
+            return false
+          }
+          // iterate to the next command nesting layer 
+          console.debug("Next layer of options:", options);
+          ({ name: nameToCheck , options = {} } = options )
+          console.debug(nameToCheck, options)
+        }
+
+
+        return commandNameToMatch === nameToCheck // works for subcommands?
+      }
+      return false
+    }
+  }
+  
+  // (TODO use race-style promises? and async predicates? and... async handlers?)
+  // Creates a predicate that is true if any of its constituent predicates are true
+  static or(...predicates) {
+    return (interactionData) => {
+      for (let p of predicates) {
+        if ( p(interactionData) )
+          return true
+      }
+      return false
+    }
+  }
+
+  // Creates a predicate that is true if all of its constituent predicates are true
+  static and(...predicates) {
+
+    return (interactionData) => {
+      return ! Predicate.or(predicates.map(Predicate.not))
+    }
+
+    // return (interactionData) => {
+    //   for (let p of predicates) {
+    //     if ( !p(interactionData) )
+    //       return false
+    //   }
+    //   return true
+    // }
+  }
+
+  // Creates a predicate whose truth value is the inverse of the constituent predicate
+  static not(predicate) {
+    return (interactionData) => {
+      return !predicate(interactionData)
+    }
+  }
+}
+
+// yeah I refactored this at one point but now it's just gunna have to be merged
+export default { handle, addHandler };
 
 

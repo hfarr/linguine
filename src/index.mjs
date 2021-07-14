@@ -1,7 +1,11 @@
 'use strict';
 import querystring from 'querystring'
 
+// TODO double check imports
 import Interactor from './interaction.mjs'
+import { Predicate } from './interaction.mjs'
+
+import { LinguineRedeemer } from './linguine/redeemer.mjs'
 
 import express from 'express'
 import discord from 'discord.js'
@@ -17,7 +21,7 @@ console.debug(`DEV ${DEV} has type ${typeof DEV}`)
 const client = new discord.Client()
 const token = `${process.env.DISCORD_TOKEN}`
 
-const DB_HOST="redis" // docker bind - Parameterize this
+const DB_HOST = "redis" // docker bind - Parameterize this
 const redis = new Redis(DB_HOST);
 
 // One thing we can use oauth for is verification - logging into the web panel with a valid OAUTH token (with identity scope, likely)
@@ -154,7 +158,7 @@ function new_registration(info) {
     .set(`discordInfo:${JSON.stringify(info)}`)             // Original response from discord in case we need to recover state
     .set(`guilds:${guild_id}`, JSON.stringify(guild_info))  // TODO use a redis hash, or zmap or whatever
     .set(`webhooks:${guild_id}`, JSON.stringify(hook))      // yeah. storing JSON strings... not the best?
-    .exec((err, results) => {})                             // TODO error handling. lots of work pushed off today..
+    .exec((err, results) => { })                             // TODO error handling. lots of work pushed off today..
 
 }
 
@@ -164,8 +168,8 @@ function new_registration(info) {
 // goes unspecified. Moreover we can specify a "constraint" predicate rather than checking if v is not null, is not undefined
 // This function returns v unless it is null or undefined, then it returns a default value. Numerics only (for now)
 // could probably use Number.isNan, which would cover the null, undefined, and unparseable cases
-const valueOrDefault = (v, dv=0) => Number.isFinite(v) ? v : dv
-const compose = (f,g) => x => f(g(x))   // Im glad the notation is flexible lol, feels closer to haskell
+const valueOrDefault = (v, dv = 0) => Number.isFinite(v) ? v : dv
+const compose = (f, g) => x => f(g(x))   // Im glad the notation is flexible lol, feels closer to haskell
 
 // Small utility function. 4am is when points expire. To implement this we use redis
 // key expiration. After the key expires, if we try to read it, we'll get a default
@@ -207,14 +211,17 @@ function getGuildInfo(guildID) {
       guildInfo.getGuildMember = (userID) => get_user(guildID, userID)
       guildInfo.sendMessage = (message) => send_message(guildID, message)
 
+      // "get" expressions are not wrapped in braces { } to use the 'default return' syntax for arrow functions
       // TODO redis error handling. Also TODO this may not be the best way to use an async pattern.
       // could use multiple redis connections and name space the keys... hmm
       guildInfo.getPoints = (userID) => redis.get(`${guildID}:${userID}:points`).then(transformValue);
-        // .then((ps) => { let p = transformValue(ps); console.log(`Got points ${p}`); return p });
+      // .then((ps) => { let p = transformValue(ps); console.log(`Got points ${p}`); return p });
       guildInfo.getLinguines = (userID) => redis.get(`${guildID}:${userID}:linguines`).then(transformValue);
-        // .then((ps) => { let p = transformValue(ps); console.log(`Got linguines ${p}`); return p });
-      // yes technically we don't need to set the experiation if the points exist already but that micro optimization is not worth the effort.
-      guildInfo.setPoints = (userID, points) => { redis.setex(`${guildID}:${userID}:points`, Math.trunc(secondsTill4am()), points) } 
+      // .then((ps) => { let p = transformValue(ps); console.log(`Got linguines ${p}`); return p });
+      
+      // "set" expressions are wrapped in braces { } to indicate function body, and by default return undefined
+      // yes technically we don't need to set the expiration if the points exist already but that micro optimization is not worth the effort.
+      guildInfo.setPoints = (userID, points) => { redis.setex(`${guildID}:${userID}:points`, Math.trunc(secondsTill4am()), points) }
       guildInfo.setLinguines = (userID, linguines) => { redis.set(`${guildID}:${userID}:linguines`, linguines) }
 
       guildInfo.getAllLinguines = async () => {
@@ -225,10 +232,10 @@ function getGuildInfo(guildID) {
 
         // pairwise map and not object because an object is hashed when used on a key (however JS implements that), which can cause potential info loss.
         //  well. In particular I believe toString() is called, not any kind of hash method.
-        const zip = (ks,vs) => ks.map( (k,i) => [k, vs[i]] )
+        const zip = (ks, vs) => ks.map((k, i) => [k, vs[i]])
 
         let sliceParams = [`${guildID}:`.length, -':linguines'.length]
-        let usrIDS = await redis.keys(`${guildID}:*:linguines`).then(ks => ks.map(k=>k.slice(...sliceParams)))
+        let usrIDS = await redis.keys(`${guildID}:*:linguines`).then(ks => ks.map(k => k.slice(...sliceParams)))
 
         // wanted to use compose with redis.get and transform value :/ maybe a Promise compose. because then the work of transforming value to int doesnt have to
         // happen in a loop pass at the end
@@ -241,7 +248,7 @@ function getGuildInfo(guildID) {
         //   .then(linguineValues => zip(usrKeys, linguineValues.map(transformValue)))
         return Promise
           .all([
-            Promise.all(usrIDS.map(fetcher)), 
+            Promise.all(usrIDS.map(fetcher)),
             Promise.all(usrIDS.map(guildInfo.getLinguines))
           ])    // yeah this is slightly a hackjob
           .then(([userVals, linguineValues]) => {
@@ -249,12 +256,12 @@ function getGuildInfo(guildID) {
             return zip(userVals, linguineValues.map(transformValue))
           })
       }
-      
+
       // closure! capturing guildID
       return guildInfo
     })
     .catch(error => { console.error("Error creating guild object") })    // I generally don't like returning null on failure. It would be better, probably, to make this a promise overall.
-    // this handler ONLY catches errors from the initial redis.get(guildKey), ~~the rest is the executor of another promise (ish)~~ or rather, just body decs.
+  // this handler ONLY catches errors from the initial redis.get(guildKey), ~~the rest is the executor of another promise (ish)~~ or rather, just body decs.
 }
 
 /**
@@ -281,7 +288,7 @@ function get_user(guild_id, user_id) {
 function send_message(guild_id, message) {
   redis.get(`webhooks:${guild_id}`)
     .then(val => JSON.parse(val))
-    .then(({id, token}) => client.fetchWebhook(id, token))    // have id, calling another Promise. // HOTFIX required to pass token because the fetch will return a webhook without one if we don't
+    .then(({ id, token }) => client.fetchWebhook(id, token))    // have id, calling another Promise. // HOTFIX required to pass token because the fetch will return a webhook without one if we don't
     .then(webhook => webhook.send(`${DEV === true ? '(debug) ' : ''}${message}`))
     .catch(console.error)
 }
@@ -296,12 +303,12 @@ function parseUserMention(mention_string) {
 
 function add_points(guild_id, user_id, points) {
 
-  let guildInfo 
+  let guildInfo
   return getGuildInfo(guild_id)
     .then(gi => { guildInfo = gi; return guildInfo.getPoints(user_id) })
     .then(oldPoints => {
       let newPoints = oldPoints + points
-      let [ pointsToSet, newLinguines ] = [ (newPoints % 100), Math.trunc(newPoints / 100) ]
+      let [pointsToSet, newLinguines] = [(newPoints % 100), Math.trunc(newPoints / 100)]
       guildInfo.setPoints(user_id, pointsToSet)
 
       if (newLinguines > 0) {
@@ -313,6 +320,8 @@ function add_points(guild_id, user_id, points) {
     })
 }
 
+// TODO guards (data constraints).
+// Linguines cannot be below 0
 function add_linguines(guild_id, user_id, linguines = 1) {
   let guildInfo   // maybe create syntax for "with" scopes, so you can specify variables available in all promises, or bind results available to succeeding pipelined function?
   return Promise.resolve()
@@ -320,6 +329,10 @@ function add_linguines(guild_id, user_id, linguines = 1) {
     .then(gi => { guildInfo = gi; return guildInfo.getLinguines(user_id) })
     .then(oldLinguines => oldLinguines + linguines)
     .then(newLinguines => { guildInfo.setLinguines(user_id, newLinguines); return newLinguines })
+}
+
+function remove_linguines(guild_id, user_id, linguines = 1) {
+  return add_linguines(guild_id, user_id, -linguines)
 }
 
 async function points_command(msg, [user, points_str]) {
@@ -367,7 +380,7 @@ async function points_command(msg, [user, points_str]) {
           // tag them as notification
           guildInfo.sendMessage(`${authorAsGuildMember.toString()}, ${points_recipient.displayName} has ${curPoints} point${curPoints === 1 ? '' : 's'}.`)
         })    // failed to send
-        
+
     }
   }
 }
@@ -379,13 +392,13 @@ async function linguines_all_command(msg) {
     return undefined
   }
 
-  let linguineState = await getGuildInfo(guildID).then(g=>g.getAllLinguines())
+  let linguineState = await getGuildInfo(guildID).then(g => g.getAllLinguines())
   let userLinguineAnnouncements = linguineState
-    .filter( ([user, linguines]) => linguines > 0 )
-    .sort( ([_x,x], [_y,y]) => y - x )
+    .filter(([user, linguines]) => linguines > 0)
+    .sort(([_x, x], [_y, y]) => y - x)
     .map(([user, linguines]) => `${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
 
-  msg.channel.send(`${DEV === true ? `(debug) `: ''}Outstanding Linguines:\n${userLinguineAnnouncements.join('\n')}`)
+  msg.channel.send(`${DEV === true ? `(debug) ` : ''}Outstanding Linguines:\n${userLinguineAnnouncements.join('\n')}`)
 }
 
 /**
@@ -481,7 +494,7 @@ async function admin_command(msg, args) { // no arguments are used for now. Just
   }
 
   guildInfo.sendMessage(messageData)
-  
+
 }
 
 // TODO better commands. Integrate w/Discord interactions (i.e make slash commands instead)
@@ -532,10 +545,106 @@ client.on('message', msg => {
   }
 });
 
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+let commandRemove = "linguines-remove"
+let commandLinguines = "linguines"
+let commandLinguinesRedeem = "linguines-redeem"
+
+// TODO - 
+let commandsAsRegistered = [
+  {
+    name: "linguines",
+    description: "",
+    options: [
+      {
+        name: commandRemove, // TODO does this name group with the name of global commands? i.e it should be unique among all commands/subcommands
+                                  // Or do I have to read this from options->...->options->name for each level of nesting?
+        description: "",
+        type: 1, // subcommand
+        options: [
+          {
+            "name": "user",
+            "description": "",
+            "type": 6, // 6 is type USER
+            "required": true
+          },
+        ]
+      }
+    ]
+  },
+  {
+    // <linguines redeem>
+  }
+]
+
+/* 
+ * Initiate linguine removal process. Expires in 10 minutes.
+ * TODO handle both the 'redeem' case and 'remove' case? 'remove' is more like an administrative action, Im not sure what circumstances warrant 
+ *    any kind of multi redemption.
+ */
+function initiateLinguinesRemove(interactionData = {}) {
+  /*
+   *  Process is as follows:
+   *    Initiated by one of
+   *      - invocation of "/linguines remove @<user> <amount>" (possibly put this under administrative action, since the use case is less frequent. UX!)
+   *      - (short hand) invocation of "/linguines redeem @<user>"  (removes one linguines
+   *    Prompts for witness confirmation. Removal requires at least one admin and one non-admin.
+   *      The initator of linguine removal is automatically set as one of the witnesses, the channel is prompted for the other (as a response to the interation).
+   *      The linguine redemee cannot sign off as a witness to their own redemption.
+   *        Although they CAN initiate the process
+   *    In the same prompt there is a disabled "done" button. The button enables once the witness requirements are fulfilled.
+   *    Anyone can click done to finish up the process
+   * 
+   *  The process occurs over a series of interactions, starting with the initiator interaction. Then it moves to witness self-selection,
+   *    which can include any number of message component selection interactions.
+   *    Finally, the "done" message component interaction signals an end.
+   * 
+   *    The redemption will be recorded in the webhook'd channel, listing the redeemee, the date, and every witness who signed off (ideally as an embeds object for
+   *    beautification).
+   * 
+   * The process expires after 10 minutes if not resolved, after which time the witness prompt message is updated to reflect the status.
+   * Another redemption will have to be initiated.
+   */
+
+  // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
+  // TODO however we still need to work out the correct way to get 'redeemee', I'm not sure what 'user' options return without exercising the actual discord api.
+  let { id: interactionID, data: { options: {options: { value: redeemee = undefined } } }, user: { id: initiator } } = interactionData // = interactionData.something
+  // the Process needs to be tied to this interaction id, or something, because future interactions need to associate correctly with the right
+  // in-progress removal
+
+  console.debug(interactionID, redeemee, initiator)
+  return { filler: "okay!" }
+
+  let redeemptionTracker = new LinguineRedeemer(redeemee)
+  redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.
+
+  // respond with the prompt message. Possibly the Progress tracker does this instead.
+  return // .... InteractionResponse (msg prompt)
+  
+}
+
+function initHandlers() {
+  Interactor.addHandler(
+    initiateLinguinesRemove,
+    Predicate.or(Predicate.command(commandRemove), Predicate.command(commandLinguines, commandLinguinesRedeem))
+  )
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 { // Not necessary to block in the initialization but I desire restricted scope. Also at the moment no need for async/await here
   console.log("Begin")
 
-  let { BIND_IP='0.0.0.0', BIND_PORT=8000 } = process.env
+  let { BIND_IP = '0.0.0.0', BIND_PORT = 8000 } = process.env
 
   let [ip, port] = [BIND_IP, parseInt(BIND_PORT)]
   if (Number.isNaN(port)) {
@@ -558,7 +667,15 @@ client.on('message', msg => {
     // discord client login. App will run if this fails, so I can test locally without using my legit credentials.
     // But other uses of client will also err - really this makes a case for modules! Its fine if we can't use the client, but 
     // we should still see the web app!
-    client.login(token).catch((err) => { console.log(`Could not log in discord client: ${err.message}`) })
+
+    
+    if ( !process.env.NO_CLIENT_LOGIN) {
+      client.login(token).catch((err) => { console.log(`Could not log in discord client: ${err.message}`) })
+    } else {
+      console.debug("Cancelled client login.")
+    }
+
+    initHandlers()
 
     // process.stdout.write("Ahh")
     console.log("Am I reached?")
@@ -572,8 +689,8 @@ client.on('message', msg => {
       redis.quit(false)
 
       // Close the server
-      appServer.close(() => { 
-        console.log("Process terminated") 
+      appServer.close(() => {
+        console.log("Process terminated")
         appServer.getConnections((err, count) => {
           if (err !== undefined) {
             console.error(err)
@@ -588,6 +705,6 @@ client.on('message', msg => {
     });
   } catch (err) {
     console.error("Error running program:")
-    console.error(error)
+    console.error(err)
   }
 }
