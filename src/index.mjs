@@ -562,7 +562,7 @@ client.on('message', msg => {
 
 let commandRemove = "linguines-remove"
 let commandLinguines = "linguines"
-let commandLinguinesRedeem = "linguines-redeem"
+let commandLinguinesRedeem = "redeem"
 
 // TODO - 
 let commandsAsRegistered = [
@@ -620,14 +620,15 @@ function initiateLinguinesRemove(interactionData = {}) {
    * Another redemption will have to be initiated.
    */
 
+  console.debug("Handling 'linguines redeem'")
   // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
   // TODO however we still need to work out the correct way to get 'redeemee', I'm not sure what 'user' options return without exercising the actual discord api.
-  let { id: interactionID, data: { options: {options: { value: redeemee = undefined } } }, user: { id: initiator } } = interactionData // = interactionData.something
+  // let { id: interactionID, data: { options: {options: { value: redeemee = undefined } } }, user: { id: initiator } } = interactionData // = interactionData.something
   // the Process needs to be tied to this interaction id, or something, because future interactions need to associate correctly with the right
   // in-progress removal
 
-  console.debug(interactionID, redeemee, initiator)
-  return { filler: "okay!" }
+  // console.debug(interactionID, redeemee, initiator)
+  return Interactor.immediateMessageResponse("Handled.")
 
   let redeemptionTracker = new LinguineRedeemer(redeemee)
   redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.

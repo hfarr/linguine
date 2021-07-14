@@ -143,7 +143,7 @@ async function handle(interactionData) {  // creates AND handles an InteractionE
   let response = Promise.any(handlerPromises)
     .catch((e) => { // None of the handlers handled the interaction
       console.debug(e.message)
-      // console.error(e.errors)  // list of the rejected values
+      console.error(e.errors)  // list of the rejected values
       return defaultResponse
     })
 
@@ -182,14 +182,15 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
           if (matchName !== nameToCheck) {
             return false
           }
-          // iterate to the next command nesting layer 
-          console.debug("Next layer of options:", options);
-          ({ name: nameToCheck, options = {} } = options)
-          console.debug(nameToCheck, options)
+          // iterate to the next command nesting layer. Options are arrays, unpack accordingly.
+          // We are expecting a subcommand, so we only look at the first item in the array - itself an ApplicationCommandOption that represents a subcommand.
+          //    if a command has a subcommand and it's used the options array is a singleton, representing the subcommand, ditto for subgroups.
+          console.debug("Next layer of options:", JSON.stringify(options));
+          ({ name: nameToCheck, options = {} } = options[0])
+          console.debug(nameToCheck, JSON.stringify(options))
         }
 
-
-        return commandNameToMatch === nameToCheck // works for subcommands?
+        return true
       }
       return false
     }
@@ -232,6 +233,6 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
 }
 
 // yeah I refactored this at one point but now it's just gunna have to be merged
-export default { handle, addHandler };
+export default { handle, addHandler, immediateMessageResponse };
 
 
