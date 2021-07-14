@@ -620,7 +620,7 @@ function initiateLinguinesRemove(interactionData = {}) {
    * Another redemption will have to be initiated.
    */
 
-  console.debug("Handling 'linguines redeem'\n", interactionData)
+  console.debug("Handling 'linguines redeem'")
   // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
   // TODO however we still need to work out the correct way to get 'redeemee', I'm not sure what 'user' options return without exercising the actual discord api.
   let { 
@@ -630,9 +630,6 @@ function initiateLinguinesRemove(interactionData = {}) {
     member: initiator
   } = interactionData
 
-  // console.debug(test)
-  // return Interactor.immediateMessageResponse("Stubbed response")
-
   // if (hasAdminPerms(userData)) ...
 
   let { id: initiatorID, permissions: permissionsInt } = initiator.user
@@ -641,12 +638,18 @@ function initiateLinguinesRemove(interactionData = {}) {
     return Interactor.immediateMessageResponse("This command does not work in DMs")
   }
 
-  let redeemee = interactionData.data.resolved.members[redeemeeID]
+  let redeemeeMember = interactionData.data.resolved.members[redeemeeID]
+  let redeemeeUser = interactionData.data.resolved.users[redeemeeID]
+
+  let redeemee = {
+    nameToUse: redeemeeMember.nick ?? redeemeeUser.username, // might not have a nickname
+    id: redeemeeID,
+  }
 
   // console.debug(interactionID, redeemee, initiator)
-  return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nick} initiated by ${initiator.nick}.`)
+  return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nameToUse} initiated by ${initiator.nick}.`)
 
-  let redeemptionTracker = new LinguineRedeemer(redeemee)
+  let redeemptionTracker = new LinguineRedeemer(redeemeeMember)
   redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.
 
   // respond with the prompt message. Possibly the Progress tracker does this instead.
