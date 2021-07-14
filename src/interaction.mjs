@@ -46,6 +46,11 @@ function immediateResponse(content) {
     data: content
   }
 }
+function immediateMessageResponse(message) {
+  return immediateResponse({
+    content: message,
+  })
+}
 
 function immediateComponentResponse(content) {
   return {
@@ -53,6 +58,8 @@ function immediateComponentResponse(content) {
     data: content
   }
 }
+
+let defaultResponse = immediateMessageResponse("Work in progress!")
 
 // In memory store of on-going interactions.
 // Keyed by ID, value is an Interaction https://discord.com/developers/docs/interactions/slash-commands#interaction
@@ -113,14 +120,13 @@ class InteractionHandler {
 
   // Process an interaction event, calling the handler
   // on it if appropriate.
-  // Returns whether or not this handler handled the event.
+  // Returns the interaction response if handled, undefined if not.
   handle(interactionEvent) {
     if (this.shouldHandle(interactionEvent)) {
       interactionEvent.handle()
-      this.handlerMethod(interactionEvent)
-      return true
+      return this.handlerMethod(interactionEvent)
     }
-    return false
+    return undefined
   }
 }
 
@@ -171,13 +177,26 @@ let interactionHandlers = []
 async function handle(interactionData) {  // creates AND handles an InteractionEvent
 
   ////////
-  // TODO
-  console.debug("Handling interaction", interactionData)
+  // console.debug("Handling interaction:\n", interactionData)
+  console.debug("Handling interaction:\n", JSON.stringify(interactionData))
 
   let interactionEvent = new InteractionEvent(interactionData)
-  interactionHandlers.forEach(h => h.handle(interactionEvent))
+  // interactionHandlers.forEach(h => h.handle(interactionEvent))
+  // TODO borrow from the previous iteration w/Promises - 
+  //  a handler's handling is a Promise to return an interaction response. Rejects if it can't.
+  try {
+    for (let h of interactionHandlers) {
+      let resp = h.handle(interactionEvent)
+      if (resp !== undefined) {
+        return resp
+      }
+    }
 
-  return
+  } catch (e) {
+    console.error("Failed to handle:\n", e)
+  }
+
+  return defaultResponse
   /////////////////////////////////////////////////////
 
 
@@ -243,7 +262,7 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
           }
           // iterate to the next command nesting layer 
           console.debug("Next layer of options:", options);
-          ({ name: nameToCheck , options = {} } = options )
+          ({ name: nameToCheck, options = {} } = options)
           console.debug(nameToCheck, options)
         }
 
@@ -253,13 +272,13 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
       return false
     }
   }
-  
+
   // (TODO use race-style promises? and async predicates? and... async handlers?)
   // Creates a predicate that is true if any of its constituent predicates are true
   static or(...predicates) {
     return (interactionData) => {
       for (let p of predicates) {
-        if ( p(interactionData) )
+        if (p(interactionData))
           return true
       }
       return false
@@ -270,7 +289,7 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
   static and(...predicates) {
 
     return (interactionData) => {
-      return ! Predicate.or(predicates.map(Predicate.not))
+      return !Predicate.or(predicates.map(Predicate.not))
     }
 
     // return (interactionData) => {
