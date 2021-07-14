@@ -620,15 +620,31 @@ function initiateLinguinesRemove(interactionData = {}) {
    * Another redemption will have to be initiated.
    */
 
-  console.debug("Handling 'linguines redeem'")
+  console.debug("Handling 'linguines redeem'\n", interactionData)
   // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
   // TODO however we still need to work out the correct way to get 'redeemee', I'm not sure what 'user' options return without exercising the actual discord api.
-  // let { id: interactionID, data: { options: {options: { value: redeemee = undefined } } }, user: { id: initiator } } = interactionData // = interactionData.something
-  // the Process needs to be tied to this interaction id, or something, because future interactions need to associate correctly with the right
-  // in-progress removal
+  let { 
+    token: continuationToken, 
+    data: { options: [ { options: [ { value: redeemeeID } ] } ] },  // we know the first option is the 'redeem' subcommand, so we just unpack it
+    // data: { options: test },  // we know the first option is the 'redeem' subcommand, so we just unpack it
+    member: initiator
+  } = interactionData
+
+  // console.debug(test)
+  // return Interactor.immediateMessageResponse("Stubbed response")
+
+  // if (hasAdminPerms(userData)) ...
+
+  let { id: initiatorID, permissions: permissionsInt } = initiator.user
+  
+  if (initiator === undefined) {
+    return Interactor.immediateMessageResponse("This command does not work in DMs")
+  }
+
+  let redeemee = interactionData.data.resolved.members[redeemeeID]
 
   // console.debug(interactionID, redeemee, initiator)
-  return Interactor.immediateMessageResponse("Handled.")
+  return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nick} initiated by ${initiator.nick}.`)
 
   let redeemptionTracker = new LinguineRedeemer(redeemee)
   redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.

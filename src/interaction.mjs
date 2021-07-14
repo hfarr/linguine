@@ -97,7 +97,7 @@ class InteractionHandler {
     return new Promise((resolve, reject) => {
       if (this.shouldHandle(interactionEvent)) {
         interactionEvent.handle()
-        resolve(this.handlerMethod(interactionEvent))
+        resolve(this.handlerMethod(interactionEvent.interactionData))
       } else {
         reject(undefined)
       }
