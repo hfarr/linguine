@@ -622,11 +622,9 @@ function initiateLinguinesRemove(interactionData = {}) {
 
   console.debug("Handling 'linguines redeem'")
   // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
-  // TODO however we still need to work out the correct way to get 'redeemee', I'm not sure what 'user' options return without exercising the actual discord api.
   let { 
     token: continuationToken, 
     data: { options: [ { options: [ { value: redeemeeID } ] } ] },  // we know the first option is the 'redeem' subcommand, so we just unpack it
-    // data: { options: test },  // we know the first option is the 'redeem' subcommand, so we just unpack it
     member: initiator
   } = interactionData
 
@@ -646,7 +644,6 @@ function initiateLinguinesRemove(interactionData = {}) {
     id: redeemeeID,
   }
 
-  // console.debug(interactionID, redeemee, initiator)
   return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nameToUse} initiated by ${initiator.nick}.`)
 
   let redeemptionTracker = new LinguineRedeemer(redeemeeMember)
