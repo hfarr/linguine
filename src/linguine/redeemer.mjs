@@ -22,6 +22,12 @@ export class LinguineMember {
     return (this.permissions & permission) === permission
   }
 
+  // Key by which we map to this LinguineMember
+  get key() {
+    // Gives me a one-stop-spot for updating the key
+    return this.id
+  }
+
   get isAdmin() {
     return this.hasPermission(PERM_ADMINISTRATOR)
   }
@@ -49,7 +55,7 @@ export class LinguineRedeemer extends InteractionContext {
 
     // FOR NOW key by redeemee, even though that encodes "global" linguine redemption
     // or like create a GuildRedeemer object that can be used to create LinguineRedeemers, IDRC right now.
-    LinguineRedeemer.trialsInProgress[redeemee.id] = this
+    LinguineRedeemer.trialsInProgress[redeemee.key] = this
 
     this.redeemee = redeemee
     this.initiator = initiator
@@ -59,17 +65,21 @@ export class LinguineRedeemer extends InteractionContext {
     // start the expiration timer
     // 10 * 60 * 1000 = 10 minutes expressed in milliseconds
     // arrow function captures the meaning of 'this' correctly (in a closure?), for our use case
-    setTimeout(() => { this.cleanup() }, 10 * 60 * 1000)
+    this.timeout = setTimeout(() => { this.cleanup() }, 10 * 60 * 1000)
 
   }
 
   /**
    * Fetch the ongoing trial for a user
-   * @param user A LinguineMember whose ongoing trial we'd like to return
+   * @param linguineMember A LinguineMember whose ongoing trial we'd like to return
    * @returns A LinguineRedeemer
    */
-  static trialFor(user) {
-    return LinguineRedeemer.trialsInProgress[user.id]
+  static trialFor(linguineMember) {
+    return LinguineRedeemer.trialsInProgress[linguineMember.key]
+  }
+
+  static trialExistsFor(linguineMember) {
+    return (linguineMember.key in LinguineRedeemer.trialsInProgress)
   }
 
   /**
@@ -101,8 +111,7 @@ export class LinguineRedeemer extends InteractionContext {
     return outcome
   }
 
-  // an InteractionResponse
-  get response() {
+  get messageData() {
 
     let csvWitnesses = this.witnesses.map(lm => lm.name).join(', ')
     let witnessField = {
@@ -110,24 +119,26 @@ export class LinguineRedeemer extends InteractionContext {
       value: this.witnesses.length > 0 ? csvWitnesses : '*None*'
     }
 
-    let signoffMessageEmbed = {
-      title: `Linguine Court`,
-      description: `Call for witnesses to testify on behalf of ${this.redeemee.name} for redemptive purposes. At least two witnesses are required. At least one witness must have administrative power. At least one witnesses must not have administrative power.`,
-      color: 0x99CC99,
-      fields: [
-        {
-          name: "Individual to be redeemed",
-          value: this.redeemee.name,
-          inline: true,
-        },
-        {
-          name: "Redemption initiator",
-          value: this.initiator.name,
-          inline: true,
-        },
-        witnessField,
-      ]
-    }
+    let signoffMessageEmbeds = [
+      {
+        title: `Linguine Court`,
+        description: `Call for witnesses to testify on behalf of ${this.redeemee.name} for redemptive purposes. At least two witnesses are required. At least one witness must have administrative power. At least one witnesses must not have administrative power.`,
+        color: 0x99CC99,
+        fields: [
+          {
+            name: "Individual to be redeemed",
+            value: this.redeemee.name,
+            inline: true,
+          },
+          {
+            name: "Redemption initiator",
+            value: this.initiator.name,
+            inline: true,
+          },
+          witnessField,
+        ]
+      }
+    ]
 
     let signoffMessageComponents = [
       {
@@ -156,12 +167,26 @@ export class LinguineRedeemer extends InteractionContext {
       }
     ]
 
-    let witnessSignoffMessage = Interactor.immediateResponse({
-      embeds: [signoffMessageEmbed],
-      components: signoffMessageComponents,
-    })
+    return {
+      embeds: signoffMessageEmbeds,
+      components: signoffMessageComponents
+    }
+  }
 
-    return witnessSignoffMessage
+  get updateResponse() {
+    // let csvWitnesses = this.witnesses.map(lm => lm.name).join(', ')
+    // let witnessField = {
+    //   name: "Witnesses",
+    //   value: this.witnesses.length > 0 ? csvWitnesses : '*None*'
+    // }
+
+    return Interactor.immediateComponentResponse(this.messageData)
+  }
+
+  // an InteractionResponse
+  get response() {
+
+    return Interactor.immediateResponse(this.messageData)
   }
 
   // Criteria is met if there is at least one admin witness and one non-admin witness, then return true, else false.
@@ -174,6 +199,12 @@ export class LinguineRedeemer extends InteractionContext {
     return hasAdminWitness && hasNonAdminWitness
   }
 
+  static cancelAll() {
+    for (let key in LinguineRedeemer.trialsInProgress) {
+      LinguineRedeemer.trialsInProgress[key].cleanup()
+    }
+  }
+
   /**
    * Clean up trial when it ends
    *  - deletes original message
@@ -182,6 +213,7 @@ export class LinguineRedeemer extends InteractionContext {
   cleanup() {
     super.deleteOriginal()
     delete LinguineRedeemer.trialsInProgress[this.redeemee.id]
+    clearInterval(this.timeout)
     super.cleanup()
   }
 
