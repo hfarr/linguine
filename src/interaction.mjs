@@ -224,6 +224,6 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
 }
 
 // yeah I refactored this at one point but now it's just gunna have to be merged
-export default { handle, addHandler, immediateResponse, immediateMessageResponse };
+export default { handle, addHandler, immediateResponse, immediateMessageResponse, immediateComponentResponse };
 
 
