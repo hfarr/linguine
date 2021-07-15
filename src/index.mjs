@@ -454,58 +454,6 @@ async function linguines_command(msg, [arg2]) {
   return undefined
 }
 
-async function admin_command(msg, args) { // no arguments are used for now. Just brings up the admin panel
-  let guildID = msg.guild.id
-  // let authorAsGuildMember = msg.guild.member(msg.author)
-  let authorAsGuildMember = await msg.guild.members.fetch(msg.author)
-  let guildInfo = await getGuildInfo(guildID)
-
-  console.debug(`Message author: ${msg.author} from guild: ${msg.guild}`)
-  console.debug(`Admin command invoked by ${authorAsGuildMember.displayName}/${authorAsGuildMember.tag}`)
-
-  // do other tasks, e.g check authorization of calling member
-
-  // TODO message
-  msg.channel.send(`Hello ${authorAsGuildMember.tag}. Please visit ${guildInfo.webhook}.`)
-  // Attempting to send new fangled message components, since it SEEMS like the library supports them but I dont think the docs are updated.
-  //  may need to pull newer version.
-  // TODO temp going through webhook- discordjs has commits in master which include WebComponents but not in any release (that I can see)
-  //    so I may hotwire directly to the discord API. Or figure out how to update the package to point to master (which I think NPM supports)
-  // msg.channel.send()
-
-  let messageData = {
-    content: `Admin panel requested by ${authorAsGuildMember.tag}`,
-    components: [
-      {
-        type: 1,
-        components: [
-          {
-            custom_id: "LinguineAdmin",
-            type: 2,
-            label: "A label",
-            style: 1, // any style can work
-          },
-          {
-            custom_id: "LingoBingo", // maybe ID per user ? use label? need to establish a pattern for using buttons, there is only so much data we can transmit
-            type: 2,
-            label: "Another button",
-            style: 2,
-          },
-          {
-            custom_id: "Lastly", // maybe ID per user ? use label? need to establish a pattern for using buttons, there is only so much data we can transmit
-            type: 2,
-            label: "Ah ha! wait just a button",
-            style: 3,
-          }
-        ]
-      }
-    ]
-  }
-
-  guildInfo.sendMessage(messageData)
-
-}
-
 // TODO better commands. Integrate w/Discord interactions (i.e make slash commands instead)
 // Command parsing should be a """framework""" which does a few things on each command -
 //  * fetching guild information (for response messages), 
@@ -564,6 +512,7 @@ client.on('message', msg => {
 let commandRemove = "linguines-remove"
 let commandLinguines = "linguines"
 let commandLinguinesRedeem = "redeem"
+let commandLinguinesCheck = "check"
 
 // Custom IDs
 let componentRedemptionCancel = "redemption_cancel"
@@ -597,12 +546,44 @@ let commandsAsRegistered = [
   }
 ]
 
+async function linguinesCheck(interactionData) {
+
+  let {
+    data: {
+      resolved,
+      guild_id: guildID,
+      options: [{ options: [{ value: checkedMemberID }] }]
+    },
+  } = interactionData
+
+  if (guildID === undefined) {
+    // I think, technically, group DMs are OK
+    return Interactor.immediateMessageResponse('This command is not valid in individual direct messages.')
+  }
+
+  let checkedMember = interactionData.member
+  let checkedUser = interactionData.user
+
+  if (checkedMemberID !== undefined) {
+    checkedMember = resolved.members[checkedMemberID]
+    checkedUser = resolved.users[checkedMemberID]
+  }
+
+  let checkedPerson = new LinguineMember(checkedMember, checkedUser)
+
+  let numLinguines = await getGuildInfo(guildID)
+    .then(guildInfo => guildInfo.getLinguines(checkedMemberID.id))
+  // let numLinguines = await guildInfo.getLinguines(checkedPerson.id)
+
+  return Interactor.immediateMessageResponse(`${checkedPerson.name} has ${numLinguines} linguine${numLinguines === 1 ? '' : 's'}.`, true)
+}
+
 /* 
  * Initiate linguine removal process. Expires in 10 minutes.
  * TODO handle both the 'redeem' case and 'remove' case? 'remove' is more like an administrative action, Im not sure what circumstances warrant 
  *    any kind of multi redemption.
  */
-function initiateLinguinesRedemption(interactionData) {
+function linguinesRedemptionInitiate(interactionData) {
   /*
    *  Process is as follows:
    *    Initiated by one of
@@ -664,7 +645,7 @@ function initiateLinguinesRedemption(interactionData) {
 }
 
 // function cancelLinguinesRedemption(interactionData) {
-function cancelLinguinesRedemption({ message: { interaction: { id } } }) {
+function linguinesRedemptionCancel({ message: { interaction: { id } } }) {
   console.debug("Handling cancel interaction!")
 
   // TODO only cancel if the canceller is the initiator or has administrative privileges
@@ -714,12 +695,19 @@ function linguineRedemptionFinish(interactionData) {
 
 }
 
+// TODO less clunky sub-command (and the possibly not working sub-command-group) handling
 function initHandlers() {
+
   Interactor.addHandler(
-    initiateLinguinesRedemption,
+    linguinesCheck,
+    Predicate.command(commandLinguines, commandLinguinesCheck)  
+  )
+
+  Interactor.addHandler(
+    linguinesRedemptionInitiate,
     Predicate.or(Predicate.command(commandRemove), Predicate.command(commandLinguines, commandLinguinesRedeem)))
   Interactor.addHandler(
-    cancelLinguinesRedemption,
+    linguinesRedemptionCancel,
     Predicate.componentButton(componentRedemptionCancel))
   Interactor.addHandler(
     linguinesRedemptionSignoff,
