@@ -12,6 +12,7 @@ import discord from 'discord.js'
 import axios from 'axios'
 import Redis from 'ioredis'; // https://github.com/luin/ioredis
 import date from 'date-and-time'
+import InteractionContext from './interactions/interactionContext.mjs';
 
 const app = express()
 
@@ -564,6 +565,11 @@ let commandRemove = "linguines-remove"
 let commandLinguines = "linguines"
 let commandLinguinesRedeem = "redeem"
 
+// Custom IDs
+let componentRedemptionCancel = "redemption_cancel"
+let componentRedemptionSignoff = "redemption_witness_signoff"
+let componentRedemptionFinish = "redemption_finish"
+
 // TODO - 
 let commandsAsRegistered = [
   {
@@ -596,7 +602,7 @@ let commandsAsRegistered = [
  * TODO handle both the 'redeem' case and 'remove' case? 'remove' is more like an administrative action, Im not sure what circumstances warrant 
  *    any kind of multi redemption.
  */
-function initiateLinguinesRemove(interactionData = {}) {
+function initiateLinguinesRedemption(interactionData) {
   /*
    *  Process is as follows:
    *    Initiated by one of
@@ -654,10 +660,22 @@ function initiateLinguinesRemove(interactionData = {}) {
   
 }
 
+// function cancelLinguinesRedemption(interactionData) {
+function cancelLinguinesRedemption( { message: { interaction: { id } } } ) {
+  console.debug("Handling cancel interaction!")
+  InteractionContext.fetchByID(id).cleanup()
+
+  return Interactor.immediateMessageResponse("Cancelled redemption!", true)
+}
+
 function initHandlers() {
   Interactor.addHandler(
-    initiateLinguinesRemove,
+    initiateLinguinesRedemption,
     Predicate.or(Predicate.command(commandRemove), Predicate.command(commandLinguines, commandLinguinesRedeem))
+  )
+  Interactor.addHandler(
+    cancelLinguinesRedemption,
+    Predicate.componentButton(componentRedemptionCancel)
   )
 }
 
