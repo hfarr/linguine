@@ -19,22 +19,26 @@ const InteractionCallbackTypes = { //https://discord.com/developers/docs/interac
 // some of these names are a little hard to follow
 
 // Respond immediately
-function immediateResponse(content) {
+function immediateResponse(responseData, ephemeral = false) {
+  if (ephemeral) {
+    // Set the ephemeral flag. works even if content.flags is undefined, because then |= operates as regular assignment by =
+    responseData.flags |= 1 << 6
+  }
   return {
     type: InteractionCallbackTypes.ChannelMessageWithSource,
-    data: content
+    data: responseData
   }
 }
-function immediateMessageResponse(message) {
+function immediateMessageResponse(message, ephemeral = false) {
   return immediateResponse({
     content: message,
-  })
+  }, ephemeral)
 }
 
-function immediateComponentResponse(content) {
+function immediateComponentResponse(responseData) {
   return {
     type: InteractionCallbackTypes.UpdateMessage,
-    data: content
+    data: responseData
   }
 }
 
@@ -55,17 +59,6 @@ async function getInteraction(snowflake, data) {
     CurrentInteractions[id] = data
   }
   return CurrentInteractions[snowflake]
-}
-
-
-// Hmm
-// Should we go Ham in our API implementation? like discordjs? I think not
-function InteractionResponse() {
-
-}
-
-function ComponentInteractionResponse() {
-
 }
 
 // A handler receives interactions and either handles them or doesn't
@@ -183,6 +176,14 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
         return true
       }
       return false
+    }
+  }
+
+  static componentButton(customIDToMatch) {
+    return (interactionData) => {
+      console.debug(`Matching ${customIDToMatch} to received id: ${'TODO'}`)
+      let { data: { custom_id: customID = undefined } } = interactionData
+      return customIDToMatch === customID
     }
   }
 
