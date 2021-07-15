@@ -1,51 +1,90 @@
+import InteractionContext from '../interactions/interactionContext.mjs'
+import Interactor from '../interaction.mjs'
 
 // TODO I need to test thoroughly.
 // TODO this seems like a good candidate for async.
 //    though I am still concerned about race conditions.
 //    I can, for now, mitigate that risk, and/or learn later how to handle synchronized data (like the witness list)
 
-// Manages a linguine redemption.
-export class LinguineRedeemer {
+const PERM_ADMINISTRATOR = 1 << 3
 
+export class LinguineMember {
+
+  constructor(discordMember, discordUser) {
+    // could do destructuring in the ^ constructor parameters but I think that might make it a little less clear.
+    this.name = discordMember.nick ?? discordUser.username
+    this.id = discordUser.id
+    this.permissions = discordMember.permissions ?? 0
+  }
+
+  // override eq? .. nah? don't feel like it? :I
+  hasPermission(permission) {
+    return (this.permissions & permission) === permission
+  }
+
+  get isAdmin() {
+    return this.hasPermission(PERM_ADMINISTRATOR)
+  }
+}
+
+// TODO if a trial is ongoing when the app restarts, then the message becomes permanent. 
+//    If a message is interacted with and the token is not currently tracked, we should delete that message if possible.
+//    We can do this cleanup on shutdown, which works if we always shutdown gracefully, as a backup we may wish to track in a database.
+
+// Manages a linguine redemption.
+export class LinguineRedeemer extends InteractionContext {
+
+  // can key by interactionToken, which InteractionContext sets on `this`.
+  // but, that implies multiple redemption courts w/in even one guild, but that is less important to me.
   static trialsInProgress = {}
 
-  // TODO
-  // user snowflakes? or the object for them?
-  // we are kinda raw'ing the API a bit.
-  // interaction data perhaps
-  constructor(redeemee) {
+  /**
+   * Create a new LinguineRedeemer to track the progress of a redemption.
+   * @param interactionData Initializing interaction (use of /linguines redeem ...)
+   * @param redeemee LinguineMember representing the user to be redeemed
+   * @param initiator LinguineMember representing the user who initiated redemption
+   */
+  constructor(interactionData, redeemee, initiator) {
+    super(interactionData)
 
     // FOR NOW key by redeemee, even though that encodes "global" linguine redemption
     // or like create a GuildRedeemer object that can be used to create LinguineRedeemers, IDRC right now.
-    trialsInProgress[redeemee] = this
+    LinguineRedeemer.trialsInProgress[redeemee.id] = this
 
-    this.redemee = redeemee
+    this.redeemee = redeemee
+    this.initiator = initiator
+
     this.witnesses = []
 
     // start the expiration timer
-    setTimeout(() => {
-      delete trialsInProgress[redeemee] // maybe call trialDone() in case there's other cleanup
-    }, 
-    10 * 60 * 1000  // 10 minutes expressed in milliseconds
-    )
+    // 10 * 60 * 1000 = 10 minutes expressed in milliseconds
+    // arrow function captures the meaning of 'this' correctly (in a closure?), for our use case
+    setTimeout(() => { this.cleanup() }, 10 * 60 * 1000)
 
   }
 
-  // Returns the in progress trial for a user
+  /**
+   * Fetch the ongoing trial for a user
+   * @param user A LinguineMember whose ongoing trial we'd like to return
+   * @returns A LinguineRedeemer
+   */
   static trialFor(user) {
-    return LinguineRedeemer.trialsInProgress[user]
+    return LinguineRedeemer.trialsInProgress[user.id]
   }
 
-  // Adds a users name to the witnesses.
-  // Returnsreturn [false,  true if that succeeded, false (and a reason) if not.
+  /**
+   * Sign off as a witness
+   * @param witness LinguineMember who signed
+   * @returns An object containing the success outcome, and a reason if signing failed.
+   */
   witnessSignoff(witness) {
     let outcome = {
       success: true,
       reason: undefined
     }
-    if (witness !== this.redemee) { // the redeemee cannot witness their own redemption
-      for (let w of this.witnesses) {
-        if (w === witness) {
+    if (witness.id !== this.redeemee.id) { // the redeemee cannot witness their own redemption
+      for (let w of this.witnesses) { // like, it would probably be more efficient to use an object, and check for key in object. It's a set after all, we guarantee uniqueness
+        if (w.id === witness.id) {
           outcome.success = false
           outcome.reason = "You are already a witness!"
           break;
@@ -53,19 +92,96 @@ export class LinguineRedeemer {
       }
     } else {
       outcome.success = false
-      outcome.reason = "You cannot act as a witness for your redemption!"
+      outcome.reason = "You cannot act as a witness for your own redemption!"
+    }
+
+    if (outcome.success) {
+      this.witnesses.push(witness)
     }
     return outcome
   }
 
-  get criteriaMet() {
-    // TODO stub
-    // if there is at least one admin witness and one non-admin witness, then return true, else false.
-    return true
+  // an InteractionResponse
+  get response() {
+
+    let csvWitnesses = this.witnesses.map(lm => lm.name).join(', ')
+    let witnessField = {
+      name: "Witnesses",
+      value: this.witnesses.length > 0 ? csvWitnesses : '*None*'
+    }
+
+    let signoffMessageEmbed = {
+      title: `Linguine Court`,
+      description: `Call for witnesses to testify on behalf of ${this.redeemee.name} for redemptive purposes. At least two witnesses are required. At least one witness must have administrative power. At least one witnesses must not have administrative power.`,
+      color: 0x99CC99,
+      fields: [
+        {
+          name: "Individual to be redeemed",
+          value: this.redeemee.name,
+          inline: true,
+        },
+        {
+          name: "Redemption initiator",
+          value: this.initiator.name,
+          inline: true,
+        },
+        witnessField,
+      ]
+    }
+
+    let signoffMessageComponents = [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 1,
+            label: "Sign your name as witness",
+            custom_id: "redemption_witness_signoff",
+          },
+          {
+            type: 2,
+            style: 3,
+            label: "Finish",
+            custom_id: "redemption_finish",
+            disabled: !this.criteriaMet, // TODO get this state from the redeemer
+          },
+          {
+            type: 2,
+            style: 4,
+            label: "Cancel",
+            custom_id: "redemption_cancel",
+          }
+        ]
+      }
+    ]
+
+    let witnessSignoffMessage = Interactor.immediateResponse({
+      embeds: [signoffMessageEmbed],
+      components: signoffMessageComponents,
+    })
+
+    return witnessSignoffMessage
   }
 
-  trialDone() {
+  // Criteria is met if there is at least one admin witness and one non-admin witness, then return true, else false.
+  get criteriaMet() {
+    // we could also just track whenever an admin signs off, and whenever a non-admin signs off... rather than.. compute each time... TODO
+    // would be nice to have an 'any' utility function, because this is a common pattern.
+    let hasAdminWitness = this.witnesses.reduce((base, current) => base || current.isAdmin, false)
+    let hasNonAdminWitness = this.witnesses.reduce((base, current) => base || (!current.isAdmin), false)
+    console.debug(this.witnesses, hasAdminWitness, hasNonAdminWitness)
+    return hasAdminWitness && hasNonAdminWitness
+  }
 
+  /**
+   * Clean up trial when it ends
+   *  - deletes original message
+   *  - removes trial from trials in progress
+   */
+  cleanup() {
+    super.deleteOriginal()
+    delete LinguineRedeemer.trialsInProgress[this.redeemee.id]
   }
 
 }

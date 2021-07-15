@@ -5,7 +5,7 @@ import querystring from 'querystring'
 import Interactor from './interaction.mjs'
 import { Predicate } from './interaction.mjs'
 
-import { LinguineRedeemer } from './linguine/redeemer.mjs'
+import { LinguineRedeemer, LinguineMember } from './linguine/redeemer.mjs'
 
 import express from 'express'
 import discord from 'discord.js'
@@ -639,79 +639,15 @@ function initiateLinguinesRemove(interactionData = {}) {
   let redeemeeMember = interactionData.data.resolved.members[redeemeeID]
   let redeemeeUser = interactionData.data.resolved.users[redeemeeID]
 
-  let initiator = {
-    nameToUse: initiatorMember.nick ?? initiatorMember.user.username,
-    id: initiatorID
-  }
+  let initiator = new LinguineMember(initiatorMember, initiatorMember.user)
+  let redeemee = new LinguineMember(redeemeeMember, redeemeeUser)
+  console.debug(initiator, redeemee)
 
-  let redeemee = {
-    nameToUse: redeemeeMember.nick ?? redeemeeUser.username, // might not have a nickname
-    id: redeemeeID,
-  }
-
-
-  // Later we can stick on fields for the linguine's reasons. Probably better to do that when the linguine is earned. I wanna use embeds so much.
-  let signoffMessageEmbed = {
-    title: `Linguine Court`,
-    description: `Call for witnesses to testify on behalf of ${redeemee.nameToUse} for redemptive purposes.`,
-    color: 0x99CC99,
-    fields: [
-      {
-        name: "Individual to be redeemed",
-        value: redeemee.nameToUse,
-        inline: true,
-      },
-      {
-        name: "Redemption initiator",
-        value: initiator.nameToUse,
-        inline: true,
-      },
-      {
-        name: "Witnesses",
-        value: ["User1", "Bod", "Joe Bident", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "b"].join(', ')
-      },
-    ]
-  }
-
-  let signoffMessageComponents = [
-    {
-      type: 1,
-      components: [
-        {
-          type: 2,
-          style: 1,
-          label: "Sign your name as witness",
-          custom_id: "redemption_witness_signoff",
-        }, 
-        {
-          type: 2,
-          style: 3,
-          label: "Finish",
-          custom_id: "redemption_finish",
-          disabled: true, // TODO get this state from the redeemer
-        },
-        {
-          type: 2,
-          style: 4,
-          label: "Cancel",
-          custom_id: "redemption_cancel",
-        }
-      ]
-    }
-  ]
-
-  let witnessSignoffMessage = Interactor.immediateResponse({
-    embeds: [ signoffMessageEmbed ],
-    components: signoffMessageComponents,
-  })
-
-
-  return witnessSignoffMessage
-
-  return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nameToUse} initiated by ${initiatorName}.`)
-
-  let redeemptionTracker = new LinguineRedeemer(redeemeeMember)
+  let redeemptionTracker = new LinguineRedeemer(interactionData, redeemee, initiator)
   redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.
+
+  return redeemptionTracker.response
+
 
   // respond with the prompt message. Possibly the Progress tracker does this instead.
   return // .... InteractionResponse (msg prompt)
@@ -749,7 +685,7 @@ function initHandlers() {
     appServer.on('close', (error) => {
       console.log("Server SHOULD close")
       if (error !== undefined && error !== null) {
-        console.log(error)
+        console.log("Error closing?", error)
       }
     })
 
@@ -782,7 +718,7 @@ function initHandlers() {
         console.log("Process terminated")
         appServer.getConnections((err, count) => {
           if (err !== undefined) {
-            console.error(err)
+            console.error("Error getting connections?", err)
           }
           console.log(`Outstanding connections ${count}`)
           if (count > 0) {
