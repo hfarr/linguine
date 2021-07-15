@@ -227,7 +227,7 @@ function getGuildInfo(guildID) {
       // .then((ps) => { let p = transformValue(ps); console.log(`Got points ${p}`); return p });
       guildInfo.getLinguines = (userID) => redis.get(`${guildID}:${userID}:linguines`).then(transformValue);
       // .then((ps) => { let p = transformValue(ps); console.log(`Got linguines ${p}`); return p });
-      
+
       // "set" expressions are wrapped in braces { } to indicate function body, and by default return undefined
       // yes technically we don't need to set the expiration if the points exist already but that micro optimization is not worth the effort.
       guildInfo.setPoints = (userID, points) => { redis.setex(`${guildID}:${userID}:points`, Math.trunc(secondsTill4am()), points) }
@@ -578,7 +578,7 @@ let commandsAsRegistered = [
     options: [
       {
         name: commandRemove, // TODO does this name group with the name of global commands? i.e it should be unique among all commands/subcommands
-                                  // Or do I have to read this from options->...->options->name for each level of nesting?
+        // Or do I have to read this from options->...->options->name for each level of nesting?
         description: "",
         type: 1, // subcommand
         options: [
@@ -628,16 +628,16 @@ function initiateLinguinesRedemption(interactionData) {
 
   console.debug("Handling 'linguines redeem'")
   // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
-  let { 
-    token: continuationToken, 
-    data: { options: [ { options: [ { value: redeemeeID } ] } ] },  // we know the first option is the 'redeem' subcommand, so we just unpack it
+  let {
+    token: continuationToken,
+    data: { options: [{ options: [{ value: redeemeeID }] }] },  // we know the first option is the 'redeem' subcommand, so we just unpack it
     member: initiatorMember
   } = interactionData
 
   // if (hasAdminPerms(userData)) ...
 
   let { id: initiatorID, permissions: permissionsInt } = initiatorMember.user
-  
+
   if (initiatorMember === undefined) {
     return Interactor.immediateMessageResponse("This command does not work in DMs")
   }
@@ -647,42 +647,66 @@ function initiateLinguinesRedemption(interactionData) {
 
   let initiator = new LinguineMember(initiatorMember, initiatorMember.user)
   let redeemee = new LinguineMember(redeemeeMember, redeemeeUser)
-  console.debug(initiator, redeemee)
 
-  let redeemptionTracker = new LinguineRedeemer(interactionData, redeemee, initiator)
-  redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.
+  if (LinguineRedeemer.trialExistsFor(redeemee)) {
+    return Interactor.immediateMessageResponse(`There is already a trial in progress for ${redeemee.name}.`, true)
+  }
 
-  return redeemptionTracker.response
+  let redemptionTracker = new LinguineRedeemer(interactionData, redeemee, initiator)
+  redemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.
+
+  return redemptionTracker.response
 
 
   // respond with the prompt message. Possibly the Progress tracker does this instead.
   return // .... InteractionResponse (msg prompt)
-  
+
 }
 
 // function cancelLinguinesRedemption(interactionData) {
-function cancelLinguinesRedemption( { message: { interaction: { id } } } ) {
+function cancelLinguinesRedemption({ message: { interaction: { id } } }) {
   console.debug("Handling cancel interaction!")
+
+  // TODO only cancel if the canceller is the initiator or has administrative privileges
   InteractionContext.fetchByID(id).cleanup()
 
   return Interactor.immediateMessageResponse("Cancelled redemption!", true)
 }
 
+function linguinesRedemptionSignoff(interactionData) {
+  console.debug("Handling witness signoff")
+
+  let { member: signeeMember, message: { interaction: { id: previousID } } } = interactionData
+  let signeeUser = signeeMember.user
+  let signee = new LinguineMember(signeeMember, signeeUser)
+
+  let redemptionTracker = InteractionContext.fetchByID(previousID)
+  let { success, reason } = redemptionTracker.witnessSignoff(signee)
+
+  if (!success) {
+    return Interactor.immediateMessageResponse(reason, true)
+  }
+
+  return redemptionTracker.updateResponse
+
+  // return Interactor.immediateMessageResponse("Witnessing registered", true)
+}
+
 function initHandlers() {
   Interactor.addHandler(
     initiateLinguinesRedemption,
-    Predicate.or(Predicate.command(commandRemove), Predicate.command(commandLinguines, commandLinguinesRedeem))
-  )
+    Predicate.or(Predicate.command(commandRemove), Predicate.command(commandLinguines, commandLinguinesRedeem)))
   Interactor.addHandler(
     cancelLinguinesRedemption,
-    Predicate.componentButton(componentRedemptionCancel)
-  )
+    Predicate.componentButton(componentRedemptionCancel))
+  Interactor.addHandler(
+    linguinesRedemptionSignoff, 
+    Predicate.componentButton(componentRedemptionSignoff))
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 { // Not necessary to block in the initialization but I desire restricted scope. Also at the moment no need for async/await here
   console.log("Begin")
@@ -711,8 +735,8 @@ function initHandlers() {
     // But other uses of client will also err - really this makes a case for modules! Its fine if we can't use the client, but 
     // we should still see the web app!
 
-    
-    if ( !process.env.NO_CLIENT_LOGIN) {
+
+    if (!process.env.NO_CLIENT_LOGIN) {
       client.login(token).catch((err) => { console.log(`Could not log in discord client: ${err.message}`) })
     } else {
       console.debug("Cancelled client login.")
@@ -730,6 +754,11 @@ function initHandlers() {
 
       // Disconnect redis (using quit() over disconnect() is the graceful approach)
       redis.quit(false)
+
+      // Cancel active 'trials' (because their timeouts prevent us from shutting down)
+      // I guess after a point we could also sigkill ourselves to do ultra cleanup
+      // But in this way our messages get cleaned up too! (at least in theory)
+      LinguineRedeemer.cancelAll()
 
       // Close the server
       appServer.close(() => {
