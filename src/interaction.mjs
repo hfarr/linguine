@@ -42,7 +42,7 @@ function immediateComponentResponse(responseData) {
   }
 }
 
-let defaultResponse = immediateMessageResponse("Work in progress!")
+let defaultResponse = immediateMessageResponse("Work in progress!", true)
 
 // In memory store of on-going interactions.
 // Keyed by ID, value is an Interaction https://discord.com/developers/docs/interactions/slash-commands#interaction
