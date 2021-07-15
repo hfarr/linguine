@@ -60,6 +60,8 @@ export class LinguineRedeemer extends InteractionContext {
     this.redeemee = redeemee
     this.initiator = initiator
 
+    this.finished = false
+
     this.witnesses = []
 
     // start the expiration timer
@@ -197,6 +199,22 @@ export class LinguineRedeemer extends InteractionContext {
     let hasNonAdminWitness = this.witnesses.reduce((base, current) => base || (!current.isAdmin), false)
     console.debug(this.witnesses, hasAdminWitness, hasNonAdminWitness)
     return hasAdminWitness && hasNonAdminWitness
+  }
+
+  get isFinished() {
+    return this.finished
+  }
+
+  /**
+   * 
+   * @returns True if this is the first time finish() is called, and thie redeemeer meets finishing criteria
+   */
+  finish() {
+    if (!this.finished && this.criteriaMet) {
+      this.finished = true
+      return true
+    }
+    return false
   }
 
   static cancelAll() {

@@ -340,7 +340,7 @@ function add_linguines(guild_id, user_id, linguines = 1) {
     .then(newLinguines => { guildInfo.setLinguines(user_id, newLinguines); return newLinguines })
 }
 
-function remove_linguines(guild_id, user_id, linguines = 1) {
+function removeLinguines(guild_id, user_id, linguines = 1) {
   return add_linguines(guild_id, user_id, -linguines)
 }
 
@@ -692,6 +692,28 @@ function linguinesRedemptionSignoff(interactionData) {
   // return Interactor.immediateMessageResponse("Witnessing registered", true)
 }
 
+function linguineRedemptionFinish(interactionData) {
+  console.debug("Handling redemption finish")
+
+  let { guild_id: guildID, message: { interaction: { id: previousID } } } = interactionData
+
+  let redemptionTracker = InteractionContext.fetchByID(previousID)
+
+  if (redemptionTracker.finish()) {
+
+    let redeemee = redemptionTracker.redeemee
+    redemptionTracker.cleanup()
+    removeLinguines(guildID, redeemee.id, 1)
+
+    return Interactor.immediateMessageResponse(`${redeemee.name} has been redeemed.`)
+
+  } else {
+
+    return Interactor.immediateMessageResponse(`This redemption has already concluded.`, true)
+  }
+
+}
+
 function initHandlers() {
   Interactor.addHandler(
     initiateLinguinesRedemption,
@@ -700,8 +722,11 @@ function initHandlers() {
     cancelLinguinesRedemption,
     Predicate.componentButton(componentRedemptionCancel))
   Interactor.addHandler(
-    linguinesRedemptionSignoff, 
+    linguinesRedemptionSignoff,
     Predicate.componentButton(componentRedemptionSignoff))
+  Interactor.addHandler(
+    linguineRedemptionFinish,
+    Predicate.componentButton(componentRedemptionFinish))
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
