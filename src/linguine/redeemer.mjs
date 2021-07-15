@@ -182,6 +182,7 @@ export class LinguineRedeemer extends InteractionContext {
   cleanup() {
     super.deleteOriginal()
     delete LinguineRedeemer.trialsInProgress[this.redeemee.id]
+    super.cleanup()
   }
 
 }
