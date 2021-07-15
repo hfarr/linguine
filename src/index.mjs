@@ -625,26 +625,90 @@ function initiateLinguinesRemove(interactionData = {}) {
   let { 
     token: continuationToken, 
     data: { options: [ { options: [ { value: redeemeeID } ] } ] },  // we know the first option is the 'redeem' subcommand, so we just unpack it
-    member: initiator
+    member: initiatorMember
   } = interactionData
 
   // if (hasAdminPerms(userData)) ...
 
-  let { id: initiatorID, permissions: permissionsInt } = initiator.user
+  let { id: initiatorID, permissions: permissionsInt } = initiatorMember.user
   
-  if (initiator === undefined) {
+  if (initiatorMember === undefined) {
     return Interactor.immediateMessageResponse("This command does not work in DMs")
   }
 
   let redeemeeMember = interactionData.data.resolved.members[redeemeeID]
   let redeemeeUser = interactionData.data.resolved.users[redeemeeID]
 
+  let initiator = {
+    nameToUse: initiatorMember.nick ?? initiatorMember.user.username,
+    id: initiatorID
+  }
+
   let redeemee = {
     nameToUse: redeemeeMember.nick ?? redeemeeUser.username, // might not have a nickname
     id: redeemeeID,
   }
 
-  return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nameToUse} initiated by ${initiator.nick}.`)
+
+  // Later we can stick on fields for the linguine's reasons. Probably better to do that when the linguine is earned. I wanna use embeds so much.
+  let signoffMessageEmbed = {
+    title: `Linguine Court`,
+    description: `Call for witnesses to testify on behalf of ${redeemee.nameToUse} for redemptive purposes.`,
+    color: 0x99CC99,
+    fields: [
+      {
+        name: "Individual to be redeemed",
+        value: redeemee.nameToUse,
+        inline: true,
+      },
+      {
+        name: "Redemption initiator",
+        value: initiator.nameToUse,
+        inline: true,
+      },
+      {
+        name: "Witnesses",
+        value: ["User1", "Bod", "Joe Bident", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "b"].join(', ')
+      },
+    ]
+  }
+
+  let signoffMessageComponents = [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 1,
+          label: "Sign your name as witness",
+          custom_id: "redemption_witness_signoff",
+        }, 
+        {
+          type: 2,
+          style: 3,
+          label: "Finish",
+          custom_id: "redemption_finish",
+          disabled: true, // TODO get this state from the redeemer
+        },
+        {
+          type: 2,
+          style: 4,
+          label: "Cancel",
+          custom_id: "redemption_cancel",
+        }
+      ]
+    }
+  ]
+
+  let witnessSignoffMessage = Interactor.immediateResponse({
+    embeds: [ signoffMessageEmbed ],
+    components: signoffMessageComponents,
+  })
+
+
+  return witnessSignoffMessage
+
+  return Interactor.immediateMessageResponse(`Redemption of ${redeemee.nameToUse} initiated by ${initiatorName}.`)
 
   let redeemptionTracker = new LinguineRedeemer(redeemeeMember)
   redeemptionTracker.witnessSignoff(initiator)  // Add the initiator as a witness. If this fails (i.e the initator is also the redeemer) it doesn't impact us here.
