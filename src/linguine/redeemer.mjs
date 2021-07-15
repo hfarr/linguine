@@ -193,6 +193,11 @@ export class LinguineRedeemer extends InteractionContext {
 
   // Criteria is met if there is at least one admin witness and one non-admin witness, then return true, else false.
   get criteriaMet() {
+
+    if (process.env.DEV_EXPEDITE_REDEMPTION === true) {
+      return true
+    }
+
     // we could also just track whenever an admin signs off, and whenever a non-admin signs off... rather than.. compute each time... TODO
     // would be nice to have an 'any' utility function, because this is a common pattern.
     let hasAdminWitness = this.witnesses.reduce((base, current) => base || current.isAdmin, false)
