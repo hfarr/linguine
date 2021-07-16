@@ -194,7 +194,7 @@ export class LinguineRedeemer extends InteractionContext {
   // Criteria is met if there is at least one admin witness and one non-admin witness, then return true, else false.
   get criteriaMet() {
 
-    if (process.env.DEV_EXPEDITE_REDEMPTION === true) {
+    if (process.env.DEV_EXPEDITE_REDEMPTION === 'true') {
       return true
     }
 
