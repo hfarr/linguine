@@ -107,7 +107,7 @@ let interactionHandlers = []
  */
 async function handle(interactionData) {  // creates AND handles an InteractionEvent
 
-  console.debug("Handling interaction:\n", JSON.stringify(interactionData))
+  // console.debug("Handling interaction:\n", JSON.stringify(interactionData))
 
   let interactionEvent = new InteractionEvent(interactionData)
   let handlerPromises = interactionHandlers.map(h => h.handle(interactionEvent))

@@ -38,7 +38,7 @@ app.all('/interaction', async (req, res) => {
   let body = req.body
   let handlerResponse = undefined
   if (body !== undefined) {
-    console.debug("-----------------------------------------------------------------\nReceived interaction\n-----------------------------------------------------------------")
+    // console.debug("-----------------------------------------------------------------\nReceived interaction\n-----------------------------------------------------------------")
     // console.debug(body)
     try {
       handlerResponse = await Interactor.handle(body)
@@ -48,10 +48,10 @@ app.all('/interaction', async (req, res) => {
   }
 
   if (handlerResponse !== undefined) {
-    console.debug("Non nonsense response:\n", handlerResponse)
+    // console.debug("Non nonsense response:\n", handlerResponse)
     res.status(200).json(handlerResponse)
   } else {
-    console.debug('No response from handler - unhandled?')
+    console.error('No response from handler - unhandled?')
     res.status(500)
   }
 })
