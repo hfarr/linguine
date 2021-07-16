@@ -546,13 +546,14 @@ let commandsAsRegistered = [
   }
 ]
 
+// Todo embelldsish! (embellish w/ embeds)
 async function linguinesCheck(interactionData) {
 
   let {
     data: {
       resolved,
       guild_id: guildID,
-      options: [{ options: [{ value: checkedMemberID }] }]
+      options: [{ options: [{ value: userIDOptionalArg }] }]
     },
   } = interactionData
 
@@ -561,21 +562,39 @@ async function linguinesCheck(interactionData) {
     return Interactor.immediateMessageResponse('This command is not valid in individual direct messages.')
   }
 
+  // By default checks the interaction invoker
   let checkedMember = interactionData.member
-  let checkedUser = interactionData.user
+  let checkedUser = interactionData.member.user
 
-  if (checkedMemberID !== undefined) {
-    checkedMember = resolved.members[checkedMemberID]
-    checkedUser = resolved.users[checkedMemberID]
+  if (userIDOptionalArg !== undefined) {
+    checkedMember = resolved.members[userIDOptionalArg]
+    checkedUser = resolved.users[userIDOptionalArg]
   }
 
   let checkedPerson = new LinguineMember(checkedMember, checkedUser)
 
   let numLinguines = await getGuildInfo(guildID)
-    .then(guildInfo => guildInfo.getLinguines(checkedMemberID.id))
+    .then(guildInfo => guildInfo.getLinguines(userIDOptionalArg.id))
   // let numLinguines = await guildInfo.getLinguines(checkedPerson.id)
 
   return Interactor.immediateMessageResponse(`${checkedPerson.name} has ${numLinguines} linguine${numLinguines === 1 ? '' : 's'}.`, true)
+}
+
+async function linguinesAll(interactionData) {
+
+  let guildID = interactionData.guild_id
+  if (guildID === undefined) {
+    return Interactor.immediateMessageResponse('This command is not valid in individual direct messages.', true)
+  }
+
+  let linguineState = await getGuildInfo(guildID).then(g => g.getAllLinguines())
+  let userLinguineAnnouncements = linguineState
+    .filter(([user, linguines]) => linguines > 0)
+    .sort(([_x, x], [_y, y]) => y - x)
+    .map(([user, linguines]) => `${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+
+  return Interactor.immediateMessageResponse(`${DEV === true ? `(debug) ` : ''}Outstanding Linguines:\n${userLinguineAnnouncements.join('\n')}`, true)
+
 }
 
 /* 
