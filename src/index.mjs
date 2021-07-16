@@ -513,6 +513,7 @@ let commandRemove = "linguines-remove"
 let commandLinguines = "linguines"
 let commandLinguinesRedeem = "redeem"
 let commandLinguinesCheck = "check"
+let commandLinguinesAll = "all"
 
 // Custom IDs
 let componentRedemptionCancel = "redemption_cancel"
@@ -721,6 +722,9 @@ function initHandlers() {
     linguinesCheck,
     Predicate.command(commandLinguines, commandLinguinesCheck)  
   )
+  Interactor.addHandler(
+    linguinesAll,
+    Predicate.command(commandLinguines, commandLinguinesAll))
 
   Interactor.addHandler(
     linguinesRedemptionInitiate,
