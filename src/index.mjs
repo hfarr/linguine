@@ -314,7 +314,7 @@ function parseUserMention(mention_string) {
   return result
 }
 
-function add_points(guild_id, user_id, points) {
+function addPoints(guild_id, user_id, points) {
 
   let guildInfo
   return getGuildInfo(guild_id)
@@ -378,7 +378,7 @@ async function points_command(msg, [user, points_str]) {
     let points = parseInt(points_str)
     if (points > 0) {
       // let new_total = guild_info['user_data'][points_recipient_id]['points']
-      let newTotal = await add_points(guild_id, points_recipient_id, points)
+      let newTotal = await addPoints(guild_id, points_recipient_id, points)
       msg.channel.send(`${DEV === true ? '(debug) ' : ''}${authorAsGuildMember.displayName} gave ${points_recipient.displayName} ${points} points! New total: ${newTotal}`)
         .catch((err) => {
           console.log(`Failed to send message: ${err.message}. Trying webhook.`)
@@ -559,6 +559,54 @@ let commandsAsRegistered = [
   }
 ]
 
+async function commandPoints(interactionData) {
+
+  let {
+    guild_id: guildID,
+    member,
+    data,
+  } = interactionData
+
+  let cmdArgs = data.options
+
+  let commandInvoker = new LinguineMember(member, member.user)
+
+  // Defaults
+  let numberOfPoints = undefined
+  let commandTarget = commandInvoker  // by default target yourself
+
+  // has arguments
+  if (cmdArgs !== undefined) {
+    for (let arg of cmdArgs) {
+      switch(arg.name) {
+        case 'user':
+          commandTarget = new LinguineMember(
+            data.resolved.members[arg.value],
+            data.resolved.users[arg.value]
+          )
+          break;
+        case 'num-points':
+          numberOfPoints = arg.value
+          break;
+      }
+    }
+  }
+
+  let guildInfo = await getGuildInfo(guildID)
+  let currentPoints = await guildInfo.getPoints(commandTarget.id)
+
+  if (numberOfPoints === undefined) {
+    return Interactor.immediateMessageResponse(`${commandTarget.name} has ${currentPoints} point${currentPoints === 1 ? '' : 's'}.`, true)
+  } else {
+    if (numberOfPoints <= 0) {
+      return Interactor.immediateMessageResponse(`No points added. ${numberOfPoints} is not a valid amount!`, true)
+    }
+    currentPoints = await addPoints(guildID, commandTarget.id, numberOfPoints)
+    return Interactor.immediateMessageResponse(`${commandInvoker.name} gave ${commandTarget.name} ${numberOfPoints} points! New total: ${currentPoints}`)
+  }
+
+}
+
 // Todo embelldsish! (embellish w/ embeds)
 async function linguinesCheck(interactionData) {
 
@@ -735,6 +783,8 @@ function linguineRedemptionFinish(interactionData) {
 
 // TODO less clunky sub-command (and the possibly not working sub-command-group) handling
 function initHandlers() {
+
+  Interactor.addHandler(commandPoints, Predicate.command('points'))
 
   Interactor.addHandler(
     linguinesCheck,
