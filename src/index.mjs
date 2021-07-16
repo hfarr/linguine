@@ -394,6 +394,15 @@ async function points_command(msg, [user, points_str]) {
   }
 }
 
+async function fetchAllLinguines(guildID) {
+  let linguineState = await getGuildInfo(guildID).then(g => g.getAllLinguines())
+  let listOfMemberLinguinePairs = linguineState
+    .filter(([member, linguines]) => ((!member.user.bot) && linguines > 0))
+    .sort(([_x, x], [_y, y]) => y - x)
+    .map(([member, linguines]) => `${member.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+  return listOfMemberLinguinePairs
+}
+
 async function linguines_all_command(msg) {
   let guildID = msg.guild?.id
   if (guildID === undefined) {
@@ -401,13 +410,10 @@ async function linguines_all_command(msg) {
     return undefined
   }
 
-  let linguineState = await getGuildInfo(guildID).then(g => g.getAllLinguines())
-  let userLinguineAnnouncements = linguineState
-    .filter(([user, linguines]) => linguines > 0)
-    .sort(([_x, x], [_y, y]) => y - x)
-    .map(([user, linguines]) => `${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+  let currentLinguines = await fetchAllLinguines(guildID)
 
-  msg.channel.send(`${DEV === true ? `(debug) ` : ''}Outstanding Linguines:\n${userLinguineAnnouncements.join('\n')}`)
+  msg.channel.send(`${DEV === true ? `(debug) ` : ''}Outstanding Linguines:\n${currentLinguines.join('\n')}`)
+
 }
 
 /**
@@ -508,6 +514,8 @@ client.on('message', msg => {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TODO 'disinteraction' library. Should really unpack, match, do all the hardwork without us needing to understand the specifics of how interactions
+// are structured.
 
 let commandRemove = "linguines-remove"
 let commandLinguines = "linguines"
@@ -551,11 +559,8 @@ let commandsAsRegistered = [
 async function linguinesCheck(interactionData) {
 
   let {
-    data: {
-      resolved,
-      guild_id: guildID,
-      options: [{ options: [{ value: userIDOptionalArg }] }]
-    },
+    guild_id: guildID,
+    data,
   } = interactionData
 
   if (guildID === undefined) {
@@ -567,15 +572,22 @@ async function linguinesCheck(interactionData) {
   let checkedMember = interactionData.member
   let checkedUser = interactionData.member.user
 
-  if (userIDOptionalArg !== undefined) {
-    checkedMember = resolved.members[userIDOptionalArg]
-    checkedUser = resolved.users[userIDOptionalArg]
+  let isUserOptionSpecified = 'options' in data.options[0]
+
+  if (isUserOptionSpecified) {
+    let resolved = interactionData.data.resolved
+    let {   // list unpacking, so fun :I
+      options: [{ options: [{ value: userID }] }]
+    } = data
+
+    checkedMember = resolved.members[userID]
+    checkedUser = resolved.users[userID]
   }
 
   let checkedPerson = new LinguineMember(checkedMember, checkedUser)
 
   let numLinguines = await getGuildInfo(guildID)
-    .then(guildInfo => guildInfo.getLinguines(userIDOptionalArg.id))
+    .then(guildInfo => guildInfo.getLinguines(checkedPerson.id))
   // let numLinguines = await guildInfo.getLinguines(checkedPerson.id)
 
   return Interactor.immediateMessageResponse(`${checkedPerson.name} has ${numLinguines} linguine${numLinguines === 1 ? '' : 's'}.`, true)
@@ -588,13 +600,9 @@ async function linguinesAll(interactionData) {
     return Interactor.immediateMessageResponse('This command is not valid in individual direct messages.', true)
   }
 
-  let linguineState = await getGuildInfo(guildID).then(g => g.getAllLinguines())
-  let userLinguineAnnouncements = linguineState
-    .filter(([user, linguines]) => linguines > 0)
-    .sort(([_x, x], [_y, y]) => y - x)
-    .map(([user, linguines]) => `${user.displayName} has ${linguines} linguine${linguines === 1 ? '' : 's'}`)
+  let currentLinguines = await fetchAllLinguines(guildID)
 
-  return Interactor.immediateMessageResponse(`${DEV === true ? `(debug) ` : ''}Outstanding Linguines:\n${userLinguineAnnouncements.join('\n')}`, true)
+  return Interactor.immediateMessageResponse(`${DEV === true ? `(debug) ` : ''}Outstanding Linguines:\n${currentLinguines.join('\n')}`, true)
 
 }
 
