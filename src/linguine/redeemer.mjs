@@ -28,6 +28,10 @@ export class LinguineMember {
     return this.id
   }
 
+  get tagForMessage() {
+    return `<@${this.id}>`
+  }
+
   // Return if this guild member is an admin or not
   get isAdmin() {
     return this.hasPermission(PERM_ADMINISTRATOR)

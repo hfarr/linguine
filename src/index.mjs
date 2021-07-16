@@ -220,7 +220,7 @@ function getGuildInfo(guildID) {
   return promise
     .then(guildStr => {
       let guildInfo = JSON.parse(guildStr)
-      guildInfo.getGuildMember = (userID) => get_user(guildID, userID)
+      // guildInfo.getGuildMember = (userID) => get_user(guildID, userID)
       guildInfo.sendMessage = (message) => send_message(guildID, message)
 
       // "get" expressions are not wrapped in braces { } to use the 'default return' syntax for arrow functions
@@ -277,19 +277,33 @@ function getGuildInfo(guildID) {
 }
 
 /**
+ * TODO lowkey, this started breaking on me. I suspect it's the discordjs library being a bit weird about me adding the bot to a guild it's already on.
+ * 
  * Get the corresponding GuildMember instance for a user's snowflake, 
  * within the guild, or null if such a user doesn't exist.
  * @param {*} guild_id Snowflake of guild
  * @param {*} user_id Snowflake of user
  * @returns GuildMember object referring to user with id
  */
-function get_user(guild_id, user_id) {
-  return new Promise((resolve, reject) => {
-    client.guilds.fetch(guild_id)
-      .then(guild => guild.member(user_id))
-      .then(resolve)  // this seems similar to calling .resolve(...) on the final promise
-      .catch(reject)
-  })
+async function get_user(guild_id, user_id) {
+  return client.guilds.fetch(guild_id)
+    .then(async guild => {
+      console.log(guild.name)
+      await guild.members.fetch()
+        .then(console.log)
+      console.log("Done...")
+      return guild.members.resolve(user_id)
+    })
+    .catch(e => {
+      console.error('Failed to fetch user', e)
+      return e
+    })
+  // return new Promise((resolve, reject) => {
+  //   client.guilds.fetch(guild_id)
+  //     .then(guild => guild.member(user_id))
+  //     .then(resolve)  // this seems similar to calling .resolve(...) on the final promise
+  //     .catch(reject)
+  // })
 }
 
 /**
@@ -298,7 +312,7 @@ function get_user(guild_id, user_id) {
  * @param {*} message Message to send
  */
 function send_message(guild_id, message) {
-  if (process.env.DEV_DISABLE_WEBHOOK ?? false) {
+  if (process.env.DEV_DISABLE_WEBHOOK === 'true') {
     console.debug("Webhook use disabled. Message sent:\n", message)
     return
   }
@@ -329,8 +343,9 @@ function addPoints(guild_id, user_id, points) {
 
       if (newLinguines > 0) {
         addLinguines(guild_id, user_id, newLinguines)
-        get_user(guild_id, user_id)
-          .then(usr => guildInfo.sendMessage(`${usr.toString()} has earned ${newLinguines === 1 ? `a Linguine.` : `${newLinguines} Linguines.`}`))
+        guildInfo.sendMessage(`<@${user_id}> has earned ${newLinguines === 1 ? `a Linguine.` : `${newLinguines} Linguines.`}`)
+        // get_user(guild_id, user_id)
+          // .then(usr => guildInfo.sendMessage(`${usr.toString()} has earned ${newLinguines === 1 ? `a Linguine.` : `${newLinguines} Linguines.`}`))
       }
       return pointsToSet
     })
@@ -799,7 +814,8 @@ function linguineRedemptionFinish(interactionData) {
     redemptionTracker.cleanup()
     removeLinguines(guildID, redeemee.id, 1)
 
-    return Interactor.immediateMessageResponse(`${redeemee.name} has been redeemed.`)
+    return Interactor.immediateMessageResponse(`${redeemee.tagForMessage} has been redeemed.`)
+    // return Interactor.immediateMessageResponse(`${redeemee.name} has been redeemed.`)
 
   } else {
     // This is only possible if two people click "Finish" at the same time. That is pretty unlikely but we have
