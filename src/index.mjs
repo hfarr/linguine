@@ -615,7 +615,7 @@ async function linguinesAll(interactionData) {
  * TODO handle both the 'redeem' case and 'remove' case? 'remove' is more like an administrative action, Im not sure what circumstances warrant 
  *    any kind of multi redemption.
  */
-function linguinesRedemptionInitiate(interactionData) {
+async function linguinesRedemptionInitiate(interactionData) {
   /*
    *  Process is as follows:
    *    Initiated by one of
@@ -642,14 +642,12 @@ function linguinesRedemptionInitiate(interactionData) {
   console.debug("Handling 'linguines redeem'")
   // If it passes the predicate, then we *SHOULD* be able to assume the presence of each value.
   let {
-    token: continuationToken,
+    guild_id: guildID,
     data: { options: [{ options: [{ value: redeemeeID }] }] },  // we know the first option is the 'redeem' subcommand, so we just unpack it
     member: initiatorMember
   } = interactionData
 
   // if (hasAdminPerms(userData)) ...
-
-  let { id: initiatorID, permissions: permissionsInt } = initiatorMember.user
 
   if (initiatorMember === undefined) {
     return Interactor.immediateMessageResponse("This command does not work in DMs")
@@ -660,6 +658,14 @@ function linguinesRedemptionInitiate(interactionData) {
 
   let initiator = new LinguineMember(initiatorMember, initiatorMember.user)
   let redeemee = new LinguineMember(redeemeeMember, redeemeeUser)
+
+  let redeemeeNumLinguines = await getGuildInfo(guildID)
+    .then(gi => gi.getLinguines(redeemeeID))
+    .catch((e) => 0)
+
+  if (redeemeeNumLinguines < 1) {
+    return Interactor.immediateMessageResponse(`${redeemee.name} does not have any linguines to redeem.`, true)
+  }
 
   if (LinguineRedeemer.trialExistsFor(redeemee)) {
     return Interactor.immediateMessageResponse(`There is already a trial in progress for ${redeemee.name}.`, true)
