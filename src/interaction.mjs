@@ -182,7 +182,6 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
   static componentButton(customIDToMatch) {
     return (interactionData) => {
       let { data: { custom_id: customID = undefined } } = interactionData
-      console.debug(`Matching ${customIDToMatch} to received id: ${customID}`)
       return customIDToMatch === customID
     }
   }
