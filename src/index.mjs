@@ -295,6 +295,10 @@ function get_user(guild_id, user_id) {
  * @param {*} message Message to send
  */
 function send_message(guild_id, message) {
+  if (process.env.DEV_DISABLE_WEBHOOK ?? false) {
+    console.debug("Webhook use disabled. Message sent:\n", message)
+    return
+  }
   redis.get(`webhooks:${guild_id}`)
     .then(val => JSON.parse(val))
     .then(({ id, token }) => client.fetchWebhook(id, token))    // have id, calling another Promise. // HOTFIX required to pass token because the fetch will return a webhook without one if we don't

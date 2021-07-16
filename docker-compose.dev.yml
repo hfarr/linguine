@@ -6,6 +6,8 @@ services:
       - "127.0.0.1:8000:8000"
     environment: 
       DEV:
+      DEV_EXPEDITE_REDEMPTION:
+      DEV_DISABLE_WEBHOOK:
     volumes:
       - "./src:/app/src"
       - "./node_modules:/app/node_modules"
