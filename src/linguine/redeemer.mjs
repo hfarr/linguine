@@ -1,11 +1,10 @@
 import InteractionContext from '../interactions/interactionContext.mjs'
-import Interactor from '../interaction.mjs'
+import Interactor from '../interactions/interaction.mjs'
 
 // TODO I need to test thoroughly.
 // TODO this seems like a good candidate for async.
-//    though I am still concerned about race conditions.
-//    I can, for now, mitigate that risk, and/or learn later how to handle synchronized data (like the witness list)
 
+// From the docs
 const PERM_ADMINISTRATOR = 1 << 3
 
 export class LinguineMember {
@@ -17,31 +16,32 @@ export class LinguineMember {
     this.permissions = discordMember.permissions ?? 0
   }
 
-  // override eq? .. nah? don't feel like it? :I
+  // override eq? .. nah? maybe later, for now Im interested in shipping this
   hasPermission(permission) {
     return (this.permissions & permission) === permission
   }
 
   // Key by which we map to this LinguineMember
   get key() {
-    // Gives me a one-stop-spot for updating the key
+    // The idea is if we change our mind on how to key the members
+    //  it's really simple to change that
     return this.id
   }
 
+  // Return if this guild member is an admin or not
   get isAdmin() {
     return this.hasPermission(PERM_ADMINISTRATOR)
   }
 }
 
-// TODO if a trial is ongoing when the app restarts, then the message becomes permanent. 
-//    If a message is interacted with and the token is not currently tracked, we should delete that message if possible.
-//    We can do this cleanup on shutdown, which works if we always shutdown gracefully, as a backup we may wish to track in a database.
+// TODO if a trial is ongoing, non-graceful app shutdowns will make the message permanent, as 
+//    the application loses track of it. At the momenet messages are deleted when the trial
+//    ends or when the app closes gracefully.
 
 // Manages a linguine redemption.
 export class LinguineRedeemer extends InteractionContext {
 
-  // can key by interactionToken, which InteractionContext sets on `this`.
-  // but, that implies multiple redemption courts w/in even one guild, but that is less important to me.
+  // Map of active trials
   static trialsInProgress = {}
 
   /**
@@ -54,7 +54,7 @@ export class LinguineRedeemer extends InteractionContext {
     super(interactionData)
 
     // FOR NOW key by redeemee, even though that encodes "global" linguine redemption
-    // or like create a GuildRedeemer object that can be used to create LinguineRedeemers, IDRC right now.
+    // or like create a GuildRedeemer object that can be used to create LinguineRedeemers
     LinguineRedeemer.trialsInProgress[redeemee.key] = this
 
     this.redeemee = redeemee
@@ -67,6 +67,8 @@ export class LinguineRedeemer extends InteractionContext {
     // start the expiration timer
     // 10 * 60 * 1000 = 10 minutes expressed in milliseconds
     // arrow function captures the meaning of 'this' correctly (in a closure?), for our use case
+    // The reason it expires is because after 15 minutes the interaction token expires
+    //  and we'd be unable to update the on going redemption.
     this.timeout = setTimeout(() => { this.cleanup() }, 10 * 60 * 1000)
 
   }
@@ -80,6 +82,11 @@ export class LinguineRedeemer extends InteractionContext {
     return LinguineRedeemer.trialsInProgress[linguineMember.key]
   }
 
+  /**
+   * Determine if a trial is ongoing for a user
+   * @param linguineMember Target of the operation
+   * @returns True if the linguineMember has an active trial
+   */
   static trialExistsFor(linguineMember) {
     return (linguineMember.key in LinguineRedeemer.trialsInProgress)
   }
@@ -113,6 +120,7 @@ export class LinguineRedeemer extends InteractionContext {
     return outcome
   }
 
+  // Message detailing this redemption. Formatted to be put in an InteractionResponse.
   get messageData() {
 
     let csvWitnesses = this.witnesses.map(lm => lm.name).join(', ')
@@ -175,25 +183,23 @@ export class LinguineRedeemer extends InteractionContext {
     }
   }
 
+  // Returns an InteractionResponse that updates the original message
   get updateResponse() {
-    // let csvWitnesses = this.witnesses.map(lm => lm.name).join(', ')
-    // let witnessField = {
-    //   name: "Witnesses",
-    //   value: this.witnesses.length > 0 ? csvWitnesses : '*None*'
-    // }
-
     return Interactor.immediateComponentResponse(this.messageData)
   }
 
-  // an InteractionResponse
+  // Returns an InteractionResponse as a reply to the user who interacted
   get response() {
 
     return Interactor.immediateResponse(this.messageData)
   }
 
-  // Criteria is met if there is at least one admin witness and one non-admin witness, then return true, else false.
+  // Return whether or not criteria for this redemption are met
+  //    The criteria are currently that at least two people witness the redemption, 
+  //    and at least one of them must have administrative privileges on the discord server.
   get criteriaMet() {
 
+    // For development only, always state that criteria are met
     if (process.env.DEV_EXPEDITE_REDEMPTION === 'true') {
       return true
     }
@@ -201,9 +207,9 @@ export class LinguineRedeemer extends InteractionContext {
     // we could also just track whenever an admin signs off, and whenever a non-admin signs off... rather than.. compute each time... TODO
     // would be nice to have an 'any' utility function, because this is a common pattern.
     let hasAdminWitness = this.witnesses.reduce((base, current) => base || current.isAdmin, false)
-    let hasNonAdminWitness = this.witnesses.reduce((base, current) => base || (!current.isAdmin), false)
-    console.debug(this.witnesses, hasAdminWitness, hasNonAdminWitness)
-    return hasAdminWitness && hasNonAdminWitness
+    let hasAtleastTwoWitnesses = this.witnesses.length >= 2
+
+    return hasAdminWitness && hasAtleastTwoWitnesses
   }
 
   get isFinished() {

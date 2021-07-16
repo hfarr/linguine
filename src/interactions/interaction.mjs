@@ -1,7 +1,5 @@
 'use strict'
 
-const DISCORD_CALLBACK_BASE = "https://discord.com/api/v8"
-
 const InteractionTypes = {
   Ping: 1,
   ApplicationComment: 2,
@@ -43,23 +41,6 @@ function immediateComponentResponse(responseData) {
 }
 
 let defaultResponse = immediateMessageResponse("Work in progress!", true)
-
-// In memory store of on-going interactions.
-// Keyed by ID, value is an Interaction https://discord.com/developers/docs/interactions/slash-commands#interaction
-const CurrentInteractions = {
-
-}
-
-
-// Returns interaction associated with snowflake, of which there can be at most 1
-//  Will create if it does not exist or return an existing one
-async function getInteraction(snowflake, data) {
-  if (!(snowflake in CurrentInteractions)) {
-    console.debug("TODO new interactions as classes")
-    CurrentInteractions[id] = data
-  }
-  return CurrentInteractions[snowflake]
-}
 
 // A handler receives interactions and either handles them or doesn't
 //  Constructed with a handlermethod, which describes actions to take if 
@@ -117,9 +98,6 @@ class InteractionEvent {
 
 let interactionHandlers = []
 
-// TODO Async methods in classes? I'd prefer to have a "HandlerEngine" or "InteractionEngine" objects instead of module level methods and variables
-//  ^^^ Side note, this is not "async safe"? Should likely read up on safety in async. ATM it calls each handler synchronously. But I thought
-//      I did this work already. Did I chuck it out in favor of the simpler yet not as satisfying synchronous solution?
 /**
  * Gateway for all interactions. Returns a promise that resolves when the given
  * request is handled - either by returning data for an "immediate response" type 4 interaction,
@@ -205,13 +183,6 @@ export class Predicate {  // Mmmm Prefix notation. this is.. a baby DSL
       return !Predicate.or(predicates.map(Predicate.not(interactionData)))
     }
 
-    // return (interactionData) => {
-    //   for (let p of predicates) {
-    //     if ( !p(interactionData) )
-    //       return false
-    //   }
-    //   return true
-    // }
   }
 
   // Creates a predicate whose truth value is the inverse of the constituent predicate

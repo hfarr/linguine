@@ -2,8 +2,8 @@
 import querystring from 'querystring'
 
 // TODO double check imports
-import Interactor from './interaction.mjs'
-import { Predicate } from './interaction.mjs'
+import Interactor from './interactions/interaction.mjs'
+import { Predicate } from './interactions/interaction.mjs'
 
 import { LinguineRedeemer, LinguineMember } from './linguine/redeemer.mjs'
 
