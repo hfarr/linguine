@@ -132,7 +132,7 @@ export class LinguineRedeemer extends InteractionContext {
     let signoffMessageEmbeds = [
       {
         title: `Linguine Court`,
-        description: `Call for witnesses to testify on behalf of ${this.redeemee.name} for redemptive purposes. At least two witnesses are required. At least one witness must have administrative power.`,
+        description: `Call for witnesses to testify on behalf of ${this.redeemee.name} for redemptive purposes. At least two witnesses are required. At least one witness must have administrative power. This message expires in 10 minutes.`,
         color: 0x99CC99,
         fields: [
           {

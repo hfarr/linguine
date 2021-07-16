@@ -167,7 +167,10 @@ function new_registration(info) {
     .set(`discordInfo:${JSON.stringify(info)}`)             // Original response from discord in case we need to recover state
     .set(`guilds:${guild_id}`, JSON.stringify(guild_info))  // TODO use a redis hash, or zmap or whatever
     .set(`webhooks:${guild_id}`, JSON.stringify(hook))      // yeah. storing JSON strings... not the best?
-    .exec((err, results) => { })                             // TODO error handling. lots of work pushed off today..
+    .exec((err, results) => {
+      console.error(err.message)
+      console.error(results)
+    })
 
 }
 
@@ -325,7 +328,7 @@ function addPoints(guild_id, user_id, points) {
       guildInfo.setPoints(user_id, pointsToSet)
 
       if (newLinguines > 0) {
-        add_linguines(guild_id, user_id, newLinguines)
+        addLinguines(guild_id, user_id, newLinguines)
         get_user(guild_id, user_id)
           .then(usr => guildInfo.sendMessage(`${usr.toString()} has earned ${newLinguines === 1 ? `a Linguine.` : `${newLinguines} Linguines.`}`))
       }
@@ -333,9 +336,7 @@ function addPoints(guild_id, user_id, points) {
     })
 }
 
-// TODO guards (data constraints).
-// Linguines cannot be below 0
-function add_linguines(guild_id, user_id, linguines = 1) {
+function addLinguines(guild_id, user_id, linguines = 1) {
   let guildInfo   // maybe create syntax for "with" scopes, so you can specify variables available in all promises, or bind results available to succeeding pipelined function?
   return Promise.resolve()
     .then(() => getGuildInfo(guild_id))
@@ -345,9 +346,12 @@ function add_linguines(guild_id, user_id, linguines = 1) {
 }
 
 function removeLinguines(guild_id, user_id, linguines = 1) {
-  return add_linguines(guild_id, user_id, -linguines)
+  return addLinguines(guild_id, user_id, -linguines)
 }
 
+/**
+ * @deprecated as of v1.1.0
+ */
 async function points_command(msg, [user, points_str]) {
 
   let guild_id = msg.guild?.id
@@ -407,6 +411,10 @@ async function fetchAllLinguines(guildID) {
   return listOfMemberLinguinePairs
 }
 
+/**
+ * @deprecated as of v1.1.0
+ *  
+ */
 async function linguines_all_command(msg) {
   let guildID = msg.guild?.id
   if (guildID === undefined) {
@@ -421,7 +429,8 @@ async function linguines_all_command(msg) {
 }
 
 /**
- *
+ * @deprecated as of v1.1.0
+ * 
  * @param msg Original message (discordjs object)
  * @param param1 Tokenized arguments (minus the first, which for this command is always `linguines`)
  * @returns undefined
@@ -491,6 +500,9 @@ function cmdParse(text) {
 // Everything after the !
 // TODO make this a "registered commands" deal, so we don't have to explicitly know what commands are registered, this just calls the relevant handler
 //  if it matches. We register a handle for matching patterns when needed.
+/**
+ * @deprecated as of v1.1.0
+ */
 function handle_cmd(msg) {
   let [command, ...args] = cmdParse(msg.content)
 
@@ -532,7 +544,7 @@ let componentRedemptionCancel = "redemption_cancel"
 let componentRedemptionSignoff = "redemption_witness_signoff"
 let componentRedemptionFinish = "redemption_finish"
 
-// TODO - 
+// TODO - extract commands out into a module for automating tasks based around commands (CRUD ops, e.g pushing out updates, command matching)
 let commandsAsRegistered = [
   {
     name: "linguines",
@@ -578,7 +590,7 @@ async function commandPoints(interactionData) {
   // has arguments
   if (cmdArgs !== undefined) {
     for (let arg of cmdArgs) {
-      switch(arg.name) {
+      switch (arg.name) {
         case 'user':
           commandTarget = new LinguineMember(
             data.resolved.members[arg.value],
@@ -658,10 +670,11 @@ async function linguinesAll(interactionData) {
 
 }
 
-/* 
- * Initiate linguine removal process. Expires in 10 minutes.
- * TODO handle both the 'redeem' case and 'remove' case? 'remove' is more like an administrative action, Im not sure what circumstances warrant 
- *    any kind of multi redemption.
+/**
+ * Logic to handle someone starting the linguine redemption process
+ * 
+ * @param interactionData Data for the interaction that started the redemption
+ * @returns A discord "Interaction Response"
  */
 async function linguinesRedemptionInitiate(interactionData) {
   /*
@@ -724,22 +737,29 @@ async function linguinesRedemptionInitiate(interactionData) {
 
   return redemptionTracker.response
 
-
-  // respond with the prompt message. Possibly the Progress tracker does this instead.
-  return // .... InteractionResponse (msg prompt)
-
 }
 
-// function cancelLinguinesRedemption(interactionData) {
+/**
+ * Cancel an ongoing redemption
+ * 
+ * @param param0 Data for the interaction (unpacked)
+ * @returns A discord "Interaction Response"
+ */
 function linguinesRedemptionCancel({ message: { interaction: { id } } }) {
-  console.debug("Handling cancel interaction!")
 
-  // TODO only cancel if the canceller is the initiator or has administrative privileges
+  // TODO only cancel if the canceller is the initiator or has administrative privileges. 
+  //    this means, for readability's sake, we shouldn't unpack the object in the parameters.
   InteractionContext.fetchByID(id).cleanup()
 
   return Interactor.immediateMessageResponse("Cancelled redemption!", true)
 }
 
+/**
+ * Logic to handle someone signing their name as witness to a redemption.
+ * 
+ * @param interactionData Data for the interaction
+ * @returns A discord "Interaction Response"
+ */
 function linguinesRedemptionSignoff(interactionData) {
   console.debug("Handling witness signoff")
 
@@ -759,6 +779,13 @@ function linguinesRedemptionSignoff(interactionData) {
   // return Interactor.immediateMessageResponse("Witnessing registered", true)
 }
 
+/**
+ * Handle someone clicking "finish" on a redemption.
+ * This entails removing a linguine from the redeemee and removing the "redemption court" message
+ * 
+ * @param interactionData Data for the interaction
+ * @returns A discord "Interaction Response"
+ */
 function linguineRedemptionFinish(interactionData) {
   console.debug("Handling redemption finish")
 
@@ -775,20 +802,23 @@ function linguineRedemptionFinish(interactionData) {
     return Interactor.immediateMessageResponse(`${redeemee.name} has been redeemed.`)
 
   } else {
-
+    // This is only possible if two people click "Finish" at the same time. That is pretty unlikely but we have
+    // to handle it, otherwise someone could inadvertently (or... advertently even) have two or more linguines removed in one go, unfairly.
     return Interactor.immediateMessageResponse(`This redemption has already concluded.`, true)
   }
 
 }
 
 // TODO less clunky sub-command (and the possibly not working sub-command-group) handling
+// This is ... very similar to assigning route handlers on express. It's giving me a hint on
+//    how to approach libraryfying interactions.
 function initHandlers() {
 
   Interactor.addHandler(commandPoints, Predicate.command('points'))
 
   Interactor.addHandler(
     linguinesCheck,
-    Predicate.command(commandLinguines, commandLinguinesCheck)  
+    Predicate.command(commandLinguines, commandLinguinesCheck)
   )
   Interactor.addHandler(
     linguinesAll,
