@@ -20,6 +20,7 @@ services:
     restart: always
     working_dir: "/app"
     environment: 
+      - "BIND_PORT=${BIND_PORT:-8000}"
       - "NODE_ENV=${NODE_ENV:-production}"
       - "DISCORD_TOKEN=${DISCORD_TOKEN}"
       - "CLIENT_ID=${CLIENT_ID}"

@@ -8,6 +8,7 @@ services:
       DEV:
       DEV_EXPEDITE_REDEMPTION:
       DEV_DISABLE_WEBHOOK:
+      DEBUG:
     volumes:
       - "./src:/app/src"
       - "./node_modules:/app/node_modules"

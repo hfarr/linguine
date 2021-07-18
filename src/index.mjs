@@ -19,6 +19,8 @@ const app = express()
 const DEV = process.env.DEV === 'true'
 console.debug(`DEV ${DEV} has type ${typeof DEV}`)
 
+const DEBUG = process.env.DEBUG === 'true'
+
 const client = new discord.Client()
 const token = `${process.env.DISCORD_TOKEN}`
 
@@ -38,8 +40,10 @@ app.all('/interaction', async (req, res) => {
   let body = req.body
   let handlerResponse = undefined
   if (body !== undefined) {
-    // console.debug("-----------------------------------------------------------------\nReceived interaction\n-----------------------------------------------------------------")
-    // console.debug(body)
+    if (DEBUG) {
+      console.debug("-----------------------------------------------------------------\nReceived interaction\n-----------------------------------------------------------------")
+      console.debug(body)
+    }
     try {
       handlerResponse = await Interactor.handle(body)
     } catch (e) {
@@ -48,7 +52,9 @@ app.all('/interaction', async (req, res) => {
   }
 
   if (handlerResponse !== undefined) {
-    // console.debug("Non nonsense response:\n", handlerResponse)
+    if (DEBUG) {
+      console.debug("Defined response:\n", handlerResponse)
+    }
     res.status(200).json(handlerResponse)
   } else {
     console.error('No response from handler - unhandled?')
