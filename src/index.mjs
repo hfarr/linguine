@@ -168,8 +168,10 @@ function new_registration(info) {
     .set(`guilds:${guild_id}`, JSON.stringify(guild_info))  // TODO use a redis hash, or zmap or whatever
     .set(`webhooks:${guild_id}`, JSON.stringify(hook))      // yeah. storing JSON strings... not the best?
     .exec((err, results) => {
-      console.error(err.message)
-      console.error(results)
+      if (err !== null && err !== undefined) {
+        console.error(err.message)
+      }
+      // console.error(results)
     })
 
 }
