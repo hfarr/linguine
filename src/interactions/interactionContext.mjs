@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-// temp
-let appID = '857817444251729940'
-let discordAPIEndpoint = 'https://discord.com/api/v8'
-let discordAPIPostInteractionEndpoint = `${discordAPIEndpoint}/webhooks/${appID}`
+const DISCORD_API_ENDPOINT = 'https://discord.com/api/v8'
+const DEBUG = process.env.DEBUG === 'true'
+
+const debugLog = (r) => { if (DEBUG); { console.log('API Response:\n', r); } }
 
 export default class InteractionContext {
 
@@ -16,6 +16,9 @@ export default class InteractionContext {
     this.initialInterID = initialInteraction.id
     this.interactionToken = initialInteraction.token
 
+    // this.applicationID = initialInteraction.application_id
+    this.interactionEndpoint = `${DISCORD_API_ENDPOINT}/webhooks/${initialInteraction.application_id}`
+
     // track message ids sent by this context, except for original which is reached with @original
     this.messages = []
 
@@ -25,28 +28,29 @@ export default class InteractionContext {
   }
 
   editOriginal(msgData) {
-    let url = `${discordAPIPostInteractionEndpoint}/${this.interactionToken}/messages/@original`
+    let url = `${this.interactionEndpoint}/${this.interactionToken}/messages/@original`
     axios.patch(url, msgData)
-      // .then(console.log)
+      .then(debugLog)
       .catch(console.error)
   }
   deleteOriginal() {
-    let url = `${discordAPIPostInteractionEndpoint}/${this.interactionToken}/messages/@original`
+    let url = `${this.interactionEndpoint}/${this.interactionToken}/messages/@original`
     axios.delete(url)
-      // .then(console.log)
+      .then(debugLog)
       .catch(console.error)
   }
   sendNewMessage(msgContent) {
-    let url = `${discordAPIPostInteractionEndpoint}/${this.interactionToken}`
+    let url = `${this.interactionEndpoint}/${this.interactionToken}`
     axios.post(url, msgContent)
-      // .then(console.log)
+      .then(debugLog)
       .catch(console.error)
+      // TODO track follow up messages
       // .then(resp => { this.messages.push(resp.id) })
   }
   updateMessage(msgContent, msgID) {
-    let url = `${discordAPIPostInteractionEndpoint}/${this.interactionToken}/messages/${msgID}`
+    let url = `${this.interactionEndpoint}/${this.interactionToken}/messages/${msgID}`
     axios.patch(url, msgContent)
-      // .then(console.log)
+      .then(debugLog)
       .catch(console.error)
   }
   static fetchByToken(token) {
