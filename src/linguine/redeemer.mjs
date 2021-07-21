@@ -64,7 +64,12 @@ export class LinguineRedeemer extends InteractionContext {
     this.redeemee = redeemee
     this.initiator = initiator
 
+    // Finished - trial is over
     this.finished = false
+
+    // redeemeeSucceeded - implies "finished", and means the redeemee collected enough signatures to lose a linguine
+    // Governed by the setter "caseWon", should *only* be modified that way.
+    this.redeemeeSucceeded = false
 
     this.witnesses = []
 
@@ -73,7 +78,7 @@ export class LinguineRedeemer extends InteractionContext {
     // arrow function captures the meaning of 'this' correctly (in a closure?), for our use case
     // The reason it expires is because after 15 minutes the interaction token expires
     //  and we'd be unable to update the on going redemption.
-    this.timeout = setTimeout(() => { this.cleanup() }, 10 * 60 * 1000)
+    this.timeout = setTimeout(() => { this.expire() }, 10 * 60 * 1000)
 
   }
 
@@ -227,6 +232,7 @@ export class LinguineRedeemer extends InteractionContext {
   finish() {
     if (!this.finished && this.criteriaMet) {
       this.finished = true
+      this.verdict = `${this.redeemee.name} is redeemed!`
       return true
     }
     return false
@@ -234,8 +240,46 @@ export class LinguineRedeemer extends InteractionContext {
 
   static cancelAll() {
     for (let key in LinguineRedeemer.trialsInProgress) {
-      LinguineRedeemer.trialsInProgress[key].cleanup()
+      LinguineRedeemer.trialsInProgress[key].cancel()
     }
+  }
+
+  /**
+   * Return a final state message for this trial.
+   * 
+   * Note - we could stuff the logic into the messageData getter but having a distinct method
+   *        let's us focus on exactly what an "end" message is. Separation of concerns.
+   * 
+   * Final messages are not interactable (no message components) and
+   * contain information about the conclusion.
+   */
+  get endMessage() {
+    let msgData = this.messageData
+    // Update only changes keys we specify. We have to explicitly state
+    //  "components is empty"
+    msgData.components = {}
+
+    if (this.verdict !== undefined) {
+      msgData.embeds.push(
+        {
+          title: "Verdict",
+          description: this.verdict,
+          color: 0x9999CC,
+        }
+      )
+    }
+
+    return msgData
+  }
+
+  cancel() {
+    this.verdict = "Trial cancelled"
+    this.cleanup()
+  }
+
+  expire() {
+    this.verdict = "Trial expired"
+    this.cleanup()
   }
 
   /**
@@ -244,7 +288,8 @@ export class LinguineRedeemer extends InteractionContext {
    *  - removes trial from trials in progress
    */
   cleanup() {
-    super.deleteOriginal()
+    // super.deleteOriginal()
+    super.editOriginal(this.endMessage)
     delete LinguineRedeemer.trialsInProgress[this.redeemee.id]
     clearInterval(this.timeout)
     super.cleanup()

@@ -772,7 +772,7 @@ function linguinesRedemptionCancel({ message: { interaction: { id } } }) {
 
   // TODO only cancel if the canceller is the initiator or has administrative privileges. 
   //    this means, for readability's sake, we shouldn't unpack the object in the parameters.
-  InteractionContext.fetchByID(id).cleanup()
+  InteractionContext.fetchByID(id).cancel()
 
   return Interactor.immediateMessageResponse("Cancelled redemption!", true)
 }
