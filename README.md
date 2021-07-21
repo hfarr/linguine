@@ -2,6 +2,10 @@
 
 ### They're good for you
 
+Dev note: This readme is outdated and is missing substantial information.
+If anyone is interested in developing or deploying please contact me for help 
+setting up your environment.
+
 ## Whomst?
 
 This is a discord base linguine tracking system, custom built
@@ -38,13 +42,22 @@ Each individual's counter can be referenced in discord. Enter in
 `!points <person's @>` for their points, or `!linguines <person's @>`
 for their linguines.
 
-## Development/Deployment
+# Development/Deployment
 
 Contact me if you would like help!
 
-### Requirements
+## Requirements
 
-These you need on the host machine that will run linguine the (currently) intended way. Better deployment procedures are, presently, pleasant dreams we have for the future.
+### **Important!**
+
+Linguine uses the Discord interactions API, which *requires you to authenticate incoming interactions*. 
+In development and production I intercept all interactions by a separate service and perform authentication there.
+All PING interactions are handled by this service, the rest are proxied to Linguine.
+As a consequence there is zero authentication code within Linguine itself, and zero code to handle PING interactions.
+If you do not set up authentication **interactions will not work**. 
+Talk to Henry for help. I can loop your dev app into my third party authentication service (I have it set up as the end point for any app I create that uses interactions).
+
+The host machine that must have the following. 
 - A unix-like system
     - Linguine binds to unix sockets to serve its web content. Unfortunately this feature is hardcoded right now- but is ripe for change if you'd like to contribute a fix!
     - To actually see the webpages you will need a front-facing webserver, AKA a [reverse proxy](https://en.wikipedia.org/wiki/Reverse_proxy). There are [additional instructions](#setting-up-a-webserver) to do this below.
@@ -52,9 +65,12 @@ These you need on the host machine that will run linguine the (currently) intend
 - A [discord app](https://discord.com/developers/docs/intro) with a bot user.
 - A [Docker](https://www.docker.com/) installation
 - A [docker-compose](https://docs.docker.com/compose/install/) binary
-    - Certain versions of docker (the latest ones) have `Compose` built in. Check yours! The commands are all the same, but start with `docker compose` and not `docker-compose`.
+    - Certain versions of docker (the latest ones) have `compose` built in. Check yours! The commands are all the same, but start with `docker compose` and not `docker-compose`.
 
-**Recommended**
+Better deployment procedures are, presently, pleasant dreams we have for the future. 
+I welcome recommendations.
+
+### Recommended
 
 If you want to run code on your host, or just have access to a JS repl. Not strictly necessary. Really handy if you want to develop though.
 
@@ -62,7 +78,7 @@ If you want to run code on your host, or just have access to a JS repl. Not stri
 - An installation of [node](https://nodejs.org) (which you can get if you have [nvm](https://github.com/nvm-sh/nvm) by running `nvm install` within the root of your copy of this repository)
 - [npm](https://npmjs.com)
 
-### Instructions (mac/linux)
+## Instructions (mac/linux) for running
 
 Any commands to be run are assumed to be run in a compatible shell like bash. If you are on windows consider using [WSL2](https://docs.microsoft.com/en-us/windows/wsl/install-win10). 
 A level of command line familiarity is assumed, at least until this procedure improves.
@@ -75,6 +91,10 @@ A level of command line familiarity is assumed, at least until this procedure im
     DISCORD_TOKEN=<discord bot token. KEEP THIS SECRET>
     CLIENT_ID=<discord developer application oauth2 client id>
     CLIENT_SECRET=<discord developer application oauth2 client secret>
+
+    BOT_LINK=<URL to register the bot (discord API oauth)>
+    REDIRECT_URI=<URL back to the website where the user clicked to register>
+    BIND_PORT=<Internal port for the service to bind. I recommend 80>
     ```
 
     Replace the bracketed text on each line with corresponding values, as described. You can find this information on your [discord application](https://discord.com/developers/applications) page for this project.

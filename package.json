@@ -1,6 +1,6 @@
 {
   "name": "linguine",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Linguine tracker for OQFC",
   "main": "index.mjs",
   "scripts": {
